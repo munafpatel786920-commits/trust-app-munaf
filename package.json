@@ -1,0 +1,84 @@
+{
+  "name": "react-example",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build && shx cp dist/index.html dist/offline_app.html && shx cp dist/index.html public/offline_app.html && shx cp dist/index.html ./offline_app.html",
+    "preview": "vite preview",
+    "clean": "shx rm -rf dist server.js dist_electron",
+    "lint": "tsc --noEmit",
+    "dist": "npm run build && electron-builder --win && node finalize_build.js"
+  },
+  "build": {
+    "appId": "com.charitabletrust.accounting",
+    "productName": "Charitable Trust Accounting",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "patelmunaf90",
+        "repo": "charitable-trust-updates",
+        "releaseType": "release"
+      }
+    ],
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "TrustAccountingSetup.${ext}"
+    },
+    "portable": {
+      "artifactName": "TrustAccountingPortable.${ext}"
+    }
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "dotenv": "^17.2.3",
+    "electron-updater": "^6.8.9",
+    "express": "^4.21.2",
+    "firebase": "^12.17.0",
+    "html2canvas-pro": "^2.3.3",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.0",
+    "shx": "^0.4.0",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

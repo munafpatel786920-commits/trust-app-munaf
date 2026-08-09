@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@media print {
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  /* Hide navigation, sidebars, headers, buttons, inputs */
+  nav, header, sidebar, aside, button, input, select, textarea,
+  .no-print, [class*="sidebar"], [class*="header"], .print\:hidden {
+    display: none !important;
+  }
+
+  /* Ensure modal overlays, scroll wrappers & fixed containers don't block print output */
+  div.fixed, div.absolute, div.relative, div.overflow-y-auto, div.overflow-hidden {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    transform: none !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #printable-agenda-area,
+  #printable-agenda-area *,
+  #printable-tharav-area,
+  #printable-tharav-area *,
+  #printable-receipt-container,
+  #printable-receipt-container *,
+  #printable-voucher-container,
+  #printable-voucher-container *,
+  .is-printing-target,
+  .is-printing-target * {
+    visibility: visible !important;
+  }
+
+  #printable-agenda-area,
+  #printable-tharav-area,
+  #printable-receipt-container,
+  #printable-voucher-container,
+  .is-printing-target {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 15px !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    page-break-inside: avoid;
+  }
+}

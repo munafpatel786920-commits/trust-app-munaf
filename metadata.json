@@ -1,0 +1,6 @@
+{
+  "name": "Gujarati Trust Accounting System",
+  "description": "સંપૂર્ણપણે ઓફલાઇન અને ગુજરાતી ભાષામાં સાર્વજનિક ચેરિટેબલ ટ્રસ્ટ માટે એકાઉન્ટિંગ અને મેનેજમેન્ટ સિસ્ટમ.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
