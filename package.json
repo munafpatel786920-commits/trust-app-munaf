@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
- "version": "1.0.1",
+  "version": "1.0.0",
   "type": "module",
   "main": "main.js",
   "scripts": {
@@ -15,14 +15,13 @@
   "build": {
     "appId": "com.charitabletrust.accounting",
     "productName": "Charitable Trust Accounting",
-   "publish": [
-  {
-    "provider": "github",
-    "owner": "munafpatel786920-commits",
-    "repo": "trust-app-munaf",
-    "releaseType": "release"
-  }
-],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "patelmunaf90",
+        "repo": "charitable-trust-updates",
+        "releaseType": "release"
+      }
     ],
     "directories": {
       "output": "dist_electron"
