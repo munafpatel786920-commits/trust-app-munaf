@@ -147,7 +147,8 @@ export default function UserManagementModule({
       role: addRole,
       roleGuj: roleLabels[addRole],
       passwordHash: trimmedPassword,
-      isActive: addIsActive
+      isActive: addIsActive,
+      trustNameGuj: currentTrust
     });
 
     setShowAddModal(false);
@@ -209,7 +210,8 @@ export default function UserManagementModule({
       role: editRole,
       roleGuj: roleLabels[editRole],
       passwordHash: trimmedPassword,
-      isActive: editIsActive
+      isActive: editIsActive,
+      trustNameGuj: selectedUser.trustNameGuj || currentTrust
     });
 
     setShowEditModal(false);

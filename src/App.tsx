@@ -771,9 +771,33 @@ export default function App() {
   }, []);
 
   // Helper to check if a user is one of the default mock users
-  const isDefaultUser = (username: string) => {
-    if (isActivated) return false;
-    return ['admin', 'accountant', 'operator', 'readonly', 'system'].includes(username.toLowerCase());
+  const isDefaultUser = (username: string, userObj?: UserType | null) => {
+    const sessionUser = userObj || currentSessionUser;
+    if (sessionUser) {
+      if (sessionUser.isVendorRegistered) return false;
+      if (
+        sessionUser.trustNameGuj &&
+        sessionUser.trustNameGuj !== 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ' &&
+        sessionUser.trustNameGuj !== 'શ્રી સાર્વજનિક કલ્યાણ ટ્રસ્ટ'
+      ) {
+        return false;
+      }
+    }
+    const uname = username ? username.toLowerCase() : '';
+    const defaultUsernames = ['accountant', 'operator', 'readonly', 'system'];
+    if (defaultUsernames.includes(uname)) return true;
+    if (uname === 'admin') {
+      if (
+        sessionUser?.isVendorRegistered ||
+        (sessionUser?.trustNameGuj &&
+          sessionUser.trustNameGuj !== 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ' &&
+          sessionUser.trustNameGuj !== 'શ્રી સાર્વજનિક કલ્યાણ ટ્રસ્ટ')
+      ) {
+        return false;
+      }
+      return !isActivated;
+    }
+    return false;
   };
 
   const isTabAllowedForRole = (tab: string, role: UserRole): boolean => {
@@ -896,21 +920,12 @@ export default function App() {
     if (storedUsers) {
       try {
         const parsedUsers = JSON.parse(storedUsers) as UserType[];
-        const cleanUsers = parsedUsers.filter(u => {
-          const luser = u.username.toLowerCase();
-          const lname = u.nameGuj.toLowerCase();
-          return (
-            !luser.includes('demo') &&
-            !luser.includes('test') &&
-            !luser.includes('somnath') &&
-            !luser.includes('sarvajanik') &&
-            !lname.includes('ડેમો') &&
-            !lname.includes('સોમનાથ') &&
-            !lname.includes('સાર્વજનિક')
-          );
-        });
-        setAppUsers(cleanUsers);
-        localStorage.setItem('trust_users', JSON.stringify(cleanUsers));
+        if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+          setAppUsers(parsedUsers);
+        } else {
+          setAppUsers(DEFAULT_USERS);
+          localStorage.setItem('trust_users', JSON.stringify(DEFAULT_USERS));
+        }
       } catch (err) {
         setAppUsers(DEFAULT_USERS);
         localStorage.setItem('trust_users', JSON.stringify(DEFAULT_USERS));
@@ -922,25 +937,20 @@ export default function App() {
 
     let loadedLic = DEFAULT_LICENSES;
     if (storedLic) {
-      const parsed = JSON.parse(storedLic) as TrustLicense[];
-      const clean = parsed.filter(l => 
-        !l.trustNameGuj.includes('સોમનાથ') && 
-        !l.trustNameGuj.includes('સેવા') && 
-        !l.trustNameGuj.includes('ગુરુકુળ') && 
-        !l.trustNameGuj.includes('સ્વામિનારાયણ') &&
-        !l.licenseKey.includes('SOMA-') &&
-        !l.licenseKey.includes('SWAM-') &&
-        !l.licenseKey.includes('GUJR-') &&
-        !l.licenseKey.includes('GUJ-TRST-2026-ACTIVATED')
-      );
-      if (clean.length === 0) {
+      try {
+        const parsed = JSON.parse(storedLic) as TrustLicense[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setLicenses(parsed);
+          loadedLic = parsed;
+        } else {
+          setLicenses(DEFAULT_LICENSES);
+          localStorage.setItem('trust_licenses', JSON.stringify(DEFAULT_LICENSES));
+          loadedLic = DEFAULT_LICENSES;
+        }
+      } catch (e) {
         setLicenses(DEFAULT_LICENSES);
         localStorage.setItem('trust_licenses', JSON.stringify(DEFAULT_LICENSES));
         loadedLic = DEFAULT_LICENSES;
-      } else {
-        setLicenses(clean);
-        localStorage.setItem('trust_licenses', JSON.stringify(clean));
-        loadedLic = clean;
       }
     } else {
       setLicenses(DEFAULT_LICENSES);
@@ -1169,10 +1179,7 @@ export default function App() {
         localStorage.setItem(getScopedKeyLocal('trust_reconciliation'), JSON.stringify(cleanRecon));
       }
     } else {
-      const initialRecon = isCustom ? [] : [
-        { id: 'tx1', date: '2026-07-25', docType: 'ચેક', bank: 'SBI', num: '990123', amount: 10000, desc: 'સદકા દાન', status: 'બાકી (Pending)', type: 'જમા (Deposit)' },
-        { id: 'tx2', date: '2026-07-28', docType: 'RTGS', bank: 'BOB', num: 'TXN882', amount: 15000, desc: 'ભાડાની આવક', status: 'બાકી (Pending)', type: 'જમા (Deposit)' },
-      ];
+      const initialRecon: any[] = [];
       setReconciliationList(initialRecon);
       localStorage.setItem(getScopedKeyLocal('trust_reconciliation'), JSON.stringify(initialRecon));
     }
@@ -1293,17 +1300,6 @@ export default function App() {
     e.preventDefault();
     const cleanUser = loginUsername.trim().toLowerCase();
     const cleanPass = loginPassword.trim();
-
-    // Security check: Block demo/test or old demo trust logins completely
-    if (
-      cleanUser.includes('demo') ||
-      cleanUser.includes('test') ||
-      cleanUser.includes('somnath') ||
-      cleanUser.includes('sarvajanik')
-    ) {
-      setLoginError('પ્રવેશ નામંજૂર: આ ડેમો એકાઉન્ટ અથવા ડેમો ટ્રસ્ટનો યુઝર નિષ્ક્રિય કરવામાં આવ્યો છે.');
-      return;
-    }
 
     // Direct Super Admin Login via main App Login Screen
     if (cleanUser === 'patelmunaf90@gmail.com' && cleanPass === 'munaf786') {
@@ -2039,9 +2035,10 @@ export default function App() {
 
   // User handlers
   const handleAddUser = (newUser: Omit<UserType, 'id' | 'isActive'> & { isActive: boolean }) => {
+    const userTrust = newUser.trustNameGuj || currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
     const user: UserType = {
       ...newUser,
-      trustNameGuj: newUser.trustNameGuj || trustSettings.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ',
+      trustNameGuj: userTrust,
       id: 'usr-' + Date.now()
     };
     const currentUsersList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
@@ -2110,18 +2107,7 @@ export default function App() {
     setVouchers([]);
     setDonors([]);
     setMembers([]);
-    const defaultBanks: BankAccount[] = [
-      {
-        id: 'bnk-sbi',
-        bankNameGuj: 'સ્ટેટ બેંક ઓફ ઇન્ડિયા (SBI)',
-        accountNumber: '30123456789',
-        ifscCode: 'SBIN0001234',
-        branchGuj: 'મુખ્ય શાખા',
-        balance: 0,
-        openingBalance: 0,
-        isActive: true
-      }
-    ];
+    const defaultBanks: BankAccount[] = [];
     setBanks(defaultBanks);
     setAssets([]);
     setDocuments([]);
@@ -2456,19 +2442,23 @@ export default function App() {
     syncStorage('trust_licenses', updated);
 
     if (newUser) {
+      const cleanUname = newUser.username.trim().toLowerCase();
       const createdUser: UserType = {
         id: 'usr-' + Date.now(),
-        username: newUser.username,
+        username: cleanUname,
         nameGuj: newUser.nameGuj || `${newLic.trustNameGuj} (પ્રશાસક)`,
         role: 'Admin',
         roleGuj: 'પ્રશાસક (Administrator)',
-        passwordHash: newUser.passwordHash,
+        passwordHash: newUser.passwordHash.trim(),
         isActive: true,
         trustNameGuj: newLic.trustNameGuj,
         isVendorRegistered: true
       };
       const userList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
-      const updatedUsers = [createdUser, ...userList.filter(u => u.username.toLowerCase() !== newUser.username.toLowerCase())];
+      const updatedUsers = [
+        createdUser, 
+        ...userList.filter(u => !(u.username.toLowerCase() === cleanUname && u.trustNameGuj === newLic.trustNameGuj))
+      ];
       setAppUsers(updatedUsers);
       localStorage.setItem('trust_users', JSON.stringify(updatedUsers));
     }
@@ -3085,17 +3075,22 @@ export default function App() {
                   <select
                     value={loginRoleFilter}
                     onChange={(e) => {
-                      setLoginRoleFilter(e.target.value as UserRole);
+                      const newRole = e.target.value as UserRole;
+                      setLoginRoleFilter(newRole);
                       setLoginPassword('');
                       setLoginError(null);
-                      if (e.target.value === 'Admin') {
-                        setLoginUsername('admin');
-                      } else if (e.target.value === 'Accountant') {
-                        setLoginUsername('accountant');
-                      } else if (e.target.value === 'DataEntry') {
-                        setLoginUsername('operator');
+
+                      const tUsers = (appUsers.length > 0 ? appUsers : DEFAULT_USERS).filter(
+                        u => (u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') === loginSelectedTrust
+                      );
+                      const matchingUser = tUsers.find(u => u.role === newRole);
+                      if (matchingUser) {
+                        setLoginUsername(matchingUser.username);
                       } else {
-                        setLoginUsername('readonly');
+                        if (newRole === 'Admin') setLoginUsername('admin');
+                        else if (newRole === 'Accountant') setLoginUsername('accountant');
+                        else if (newRole === 'DataEntry') setLoginUsername('operator');
+                        else setLoginUsername('readonly');
                       }
                     }}
                     className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500"
@@ -3581,15 +3576,6 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-
-            {/* Active License Key Badge */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <div className="text-left leading-none">
-                <div className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-600 dark:text-emerald-400">એક્ટિવેટેડ કી</div>
-                <div className="text-[10px] font-mono">{activationKey || 'GUJ-TRST-2026-ACTIVATED'}</div>
-              </div>
             </div>
 
             {/* Draggable/floating Calculator toggle button */}

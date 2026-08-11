@@ -435,8 +435,8 @@ export default function SuperAdminPanel({
             </div>
           )}
 
-          {/* Customer Backup Status / Remote Updates Panel */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Customer Backup Status Panel */}
+          <div className="grid grid-cols-1 gap-4">
             <div className={`p-4 rounded-xl border ${cardBg} space-y-2`}>
               <h4 className="font-bold text-xs flex items-center gap-1.5 text-indigo-600"><Database className="w-4 h-4" /> ક્લાયન્ટ બેકઅપ આરોગ્ય</h4>
               <p className="text-[10px] text-slate-500">ગ્રાહકોના ઓટોમેટેડ સિક્યોર્ડ ઓફલાઇન ડેટાબેઝ ક્લાઉડ સિંક ઓડિટ સ્કોર.</p>
@@ -446,17 +446,6 @@ export default function SuperAdminPanel({
                   <span className="text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> પૂર્ણ સેવ (100%)</span>
                 </div>
               </div>
-            </div>
-
-            <div className={`p-4 rounded-xl border ${cardBg} space-y-2`}>
-              <h4 className="font-bold text-xs flex items-center gap-1.5 text-indigo-600"><RefreshCw className="w-4 h-4" /> સોફ્ટવેર રીમોટ અપડેટ્સ</h4>
-              <p className="text-[10px] text-slate-500">ગ્રાહકોની વિન્ડોઝ ડેસ્કટોપ સિસ્ટમ માટે નવીનતમ v4.2.0 સેટઅપ ડિલિવરી.</p>
-              <button
-                onClick={() => alert('નવું સિસ્ટમ v4.2.0 પેચ રોલઆઉટ પ્રોટોકોલ ચાલુ છે (Remote Patch Triggered).')}
-                className="w-full py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded text-[11px] mt-2 border border-indigo-200"
-              >
-                રીમોટ પેચ v4.2.0 પુશ કરો
-              </button>
             </div>
           </div>
         </div>

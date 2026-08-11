@@ -870,75 +870,7 @@ start msedge --app="file:///%INSTALL_DIR:\\=/%/index.html"
             </div>
           </div>
 
-          {/* Remote Software Updates Card */}
-          <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
-            <div className="flex flex-wrap justify-between items-center gap-2 border-b pb-3">
-              <div className="flex items-center gap-2">
-                <RefreshCw className="w-5 h-5 text-indigo-600" />
-                <div>
-                  <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">રીમોટ સોફ્ટવેર અપડેટ્સ (Remote Software Updates & Upgrades)</h3>
-                  <p className={`text-[11px] ${textMuted}`}>કમ્પ્યુટર અને ક્લાઉડ સર્વર પર સોફ્ટવેરનું વર્ઝન અપડેટ કરો</p>
-                </div>
-              </div>
-              <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-mono font-bold text-xs rounded-full border border-emerald-300 dark:border-emerald-700">
-                વર્ઝન: v4.2.0 (Stable)
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Option A: Online Auto Update Check */}
-              <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl space-y-3">
-                <strong className="block text-xs font-bold text-indigo-900 dark:text-indigo-300">૧. ઓનલાઇન ક્લાઉડ અપડેટ (Online Remote Update)</strong>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-normal">
-                  સર્વર સાથે કનેક્ટ થઈને નવું સોફ્ટવેર અપડેટ આપોઆપ ડાઉનલોડ અને ઇન્સ્ટોલ કરો.
-                </p>
-                <button
-                  onClick={() => {
-                    const btn = document.getElementById('btn-check-update');
-                    if (btn) btn.innerText = 'તપાસ ચાલુ છે...';
-                    setTimeout(() => {
-                      if (btn) btn.innerText = '✓ સોફ્ટવેર અદ્યતન છે (v4.2.0 Latest)';
-                      alert('અપડેટ તપાસ પૂર્ણ: તમારું સોફ્ટવેર લેટેસ્ટ વર્ઝન v4.2.0 (August 2026 Build) પર અપ-ટૂ-ડેટ છે.');
-                    }, 1500);
-                  }}
-                  id="btn-check-update"
-                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
-                >
-                  ઓનલાઇન અપડેટ્સ ચેક કરો (Check Server Updates)
-                </button>
-              </div>
-
-              {/* Option B: Offline Patch Upgrade */}
-              <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl space-y-3">
-                <strong className="block text-xs font-bold text-emerald-900 dark:text-emerald-300">૨. ઓફલાઇન પૅચ અપડેટ (Offline Patch Upgrade)</strong>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-normal">
-                  ઈન્ટરનેટ વિના પેનડ્રાઈવ દ્વારા મેળવેલી અપડેટ ફાઈલ (.patch /.json) બ્રાઉઝ કરીને ઇન્સ્ટોલ કરો.
-                </p>
-                <label className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-sm text-center block cursor-pointer">
-                  પૅચ ફાઇલ અપલોડ કરો (Select .patch / .json)
-                  <input
-                    type="file"
-                    accept=".patch,.json,.pkg"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        alert(`અપડેટ પૅચ ફાઇલ "${file.name}" સફળતાપૂર્વક વેરીફાય થઈ છે! સોફ્ટવેર કોડ અને સેટિંગ્સ અપડેટ થઈ ગયા છે.`);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs">
-              <div className="space-y-0.5">
-                <span className="font-bold block text-slate-800 dark:text-slate-200">ઓટોમેટિક અપડેટ નોટિફિકેશન</span>
-                <span className="text-[10px] text-slate-500">જ્યારે પણ નવું વર્ઝન આવે ત્યારે સ્ક્રીન પર નોટિસ બતાવશે</span>
-              </div>
-              <input type="checkbox" defaultChecked className="w-4 h-4 accent-indigo-600 cursor-pointer" />
-            </div>
-          </div>
         </div>
 
         {/* Right Side */}

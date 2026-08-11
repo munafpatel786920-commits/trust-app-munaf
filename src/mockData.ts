@@ -87,28 +87,7 @@ export const DEFAULT_DONORS: Donor[] = [
   }
 ];
 
-export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [
-  {
-    id: 'bnk1',
-    bankNameGuj: 'સ્ટેટ બેંક ઓફ ઇન્ડિયા (SBI)',
-    accountNumber: '30491002345',
-    branchGuj: 'આશ્રમ રોડ શાખા, અમદાવાદ',
-    ifscCode: 'SBIN0000001',
-    balance: 485000,
-    openingBalance: 450000,
-    isActive: true
-  },
-  {
-    id: 'bnk2',
-    bankNameGuj: 'બેંક ઓફ બરોડા (BOB)',
-    accountNumber: '01290200001',
-    branchGuj: 'પાલડી શાખા, અમદાવાદ',
-    ifscCode: 'BARB0PALADI',
-    balance: 290000,
-    openingBalance: 275000,
-    isActive: true
-  }
-];
+export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [];
 
 export const DEFAULT_INCOME_RECEIPTS: IncomeReceipt[] = [
   {

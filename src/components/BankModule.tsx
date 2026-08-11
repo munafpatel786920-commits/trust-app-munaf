@@ -499,6 +499,13 @@ export default function BankModule({
 
       {/* Bank Account balances cards list */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {banks.length === 0 && (
+          <div className={`col-span-full p-8 rounded-2xl border text-center ${cardBg}`}>
+            <Landmark className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+            <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">કોઈ બેંક ખાતું ઉમેરેલ નથી (No Bank Accounts)</h4>
+            <p className={`text-xs mt-1 ${textMuted}`}>હજુ સુધી કોઈ બેંક ખાતું સેટ કરેલ નથી. નવું બેંક ખાતું ઉમેરવા માટે ઉપર "નવું બેંક ખાતું ઉમેરો" બટન પર ક્લિક કરો.</p>
+          </div>
+        )}
         {banks.map(b => (
           <div key={b.id} className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
             <div className="flex justify-between items-start">
