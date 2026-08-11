@@ -586,6 +586,33 @@ export default function App() {
   // Connect/Create File System handlers
   const handleCreatePCFile = async () => {
     try {
+      if (window.self !== window.top || !('showSaveFilePicker' in window)) {
+        // Fallback for iframe / non-supported environment: Download JSON File directly
+        const payload = {
+          trust_donors: donors,
+          trust_receipts: receipts,
+          trust_vouchers: vouchers,
+          trust_banks: banks,
+          trust_members: members,
+          trust_assets: assets,
+          trust_documents: documents,
+          trust_tharavs: tharavs,
+          trust_audit_logs: auditLogs,
+          trust_licenses: licenses,
+          trust_settings: trustSettings,
+          last_saved_at: new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Trust_Backup_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        alert("તમારા કમ્પ્યુટર પર બેકઅપ ફાઇલ ડાઉનલોડ થઈ ગઈ છે!");
+        return;
+      }
+
       const translitName = await translitWord(trustSettings.trustNameGuj);
       const options = {
         suggestedName: `${translitName.replace(/\s+/g, '_')}_PC_Backup.json`,
@@ -632,13 +659,74 @@ export default function App() {
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error("Failed to create file:", err);
-        alert("નવી ફાઇલ બનાવવામાં સમસ્યા આવી: " + err.message);
+        // If cross-origin iframe error happens, fallback to traditional download
+        if (err.message && err.message.includes('Cross origin')) {
+          const payload = {
+            trust_donors: donors,
+            trust_receipts: receipts,
+            trust_vouchers: vouchers,
+            trust_banks: banks,
+            trust_members: members,
+            trust_assets: assets,
+            trust_documents: documents,
+            trust_tharavs: tharavs,
+            trust_audit_logs: auditLogs,
+            trust_licenses: licenses,
+            trust_settings: trustSettings,
+            last_saved_at: new Date().toISOString()
+          };
+          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Trust_Backup_${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          alert("તમારા કમ્પ્યુટર પર બેકઅપ ફાઇલ ડાઉનલોડ થઈ ગઈ છે!");
+        } else {
+          alert("નવી ફાઇલ બનાવવામાં સમસ્યા આવી: " + err.message);
+        }
       }
     }
   };
 
   const handleConnectExistingPCFile = async () => {
     try {
+      if (window.self !== window.top || !('showOpenFilePicker' in window)) {
+        // Fallback for iframe: create hidden file input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e: any) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            if (parsed && (parsed.trust_receipts || parsed.trust_vouchers || parsed.trust_settings)) {
+              if (parsed.trust_donors) { setDonors(parsed.trust_donors); syncStorage('trust_donors', parsed.trust_donors); }
+              if (parsed.trust_receipts) { setReceipts(parsed.trust_receipts); syncStorage('trust_receipts', parsed.trust_receipts); }
+              if (parsed.trust_vouchers) { setVouchers(parsed.trust_vouchers); syncStorage('trust_vouchers', parsed.trust_vouchers); }
+              if (parsed.trust_banks) { setBanks(parsed.trust_banks); syncStorage('trust_banks', parsed.trust_banks); }
+              if (parsed.trust_members) { setMembers(parsed.trust_members); syncStorage('trust_members', parsed.trust_members); }
+              if (parsed.trust_assets) { setAssets(parsed.trust_assets); syncStorage('trust_assets', parsed.trust_assets); }
+              if (parsed.trust_documents) { setDocuments(parsed.trust_documents); syncStorage('trust_documents', parsed.trust_documents); }
+              if (parsed.trust_tharavs) { setTharavs(parsed.trust_tharavs); syncStorage('trust_tharavs', parsed.trust_tharavs); }
+              if (parsed.trust_audit_logs) { setAuditLogs(parsed.trust_audit_logs); syncStorage('trust_audit_logs', parsed.trust_audit_logs); }
+              if (parsed.trust_licenses) { setLicenses(parsed.trust_licenses); syncStorage('trust_licenses', parsed.trust_licenses); }
+              if (parsed.trust_settings) { setTrustSettings(parsed.trust_settings); syncStorage('trust_settings', parsed.trust_settings); }
+              if (parsed.trust_reconciliation) { setReconciliationList(parsed.trust_reconciliation); syncStorage('trust_reconciliation', parsed.trust_reconciliation); }
+
+              setFileName(file.name);
+              alert(`સફળતાપૂર્વક ઈમ્પોર્ટ! "${file.name}" ફાઇલમાંથી તમામ જુનો હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે.`);
+            } else {
+              alert("આ એક અમાન્ય હિસાબી ફાઇલ છે. કૃપા કરીને સાચી બેકઅપ ફાઈલ સિલેક્ટ કરો.");
+            }
+          }
+        };
+        input.click();
+        return;
+      }
+
       const options = {
         types: [{
           description: 'JSON Database File',
@@ -687,7 +775,40 @@ export default function App() {
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error("Failed to connect file:", err);
-        alert("ફાઇલ જોડવામાં ક્ષતિ: " + err.message);
+        if (err.message && err.message.includes('Cross origin')) {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.json';
+          input.onchange = async (e: any) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              const text = await file.text();
+              const parsed = JSON.parse(text);
+              if (parsed && (parsed.trust_receipts || parsed.trust_vouchers || parsed.trust_settings)) {
+                if (parsed.trust_donors) { setDonors(parsed.trust_donors); syncStorage('trust_donors', parsed.trust_donors); }
+                if (parsed.trust_receipts) { setReceipts(parsed.trust_receipts); syncStorage('trust_receipts', parsed.trust_receipts); }
+                if (parsed.trust_vouchers) { setVouchers(parsed.trust_vouchers); syncStorage('trust_vouchers', parsed.trust_vouchers); }
+                if (parsed.trust_banks) { setBanks(parsed.trust_banks); syncStorage('trust_banks', parsed.trust_banks); }
+                if (parsed.trust_members) { setMembers(parsed.trust_members); syncStorage('trust_members', parsed.trust_members); }
+                if (parsed.trust_assets) { setAssets(parsed.trust_assets); syncStorage('trust_assets', parsed.trust_assets); }
+                if (parsed.trust_documents) { setDocuments(parsed.trust_documents); syncStorage('trust_documents', parsed.trust_documents); }
+                if (parsed.trust_tharavs) { setTharavs(parsed.trust_tharavs); syncStorage('trust_tharavs', parsed.trust_tharavs); }
+                if (parsed.trust_audit_logs) { setAuditLogs(parsed.trust_audit_logs); syncStorage('trust_audit_logs', parsed.trust_audit_logs); }
+                if (parsed.trust_licenses) { setLicenses(parsed.trust_licenses); syncStorage('trust_licenses', parsed.trust_licenses); }
+                if (parsed.trust_settings) { setTrustSettings(parsed.trust_settings); syncStorage('trust_settings', parsed.trust_settings); }
+                if (parsed.trust_reconciliation) { setReconciliationList(parsed.trust_reconciliation); syncStorage('trust_reconciliation', parsed.trust_reconciliation); }
+
+                setFileName(file.name);
+                alert(`સફળતાપૂર્વક ઈમ્પોર્ટ! "${file.name}" ફાઇલમાંથી તમામ જુનો હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે.`);
+              } else {
+                alert("આ એક અમાન્ય હિસાબી ફાઇલ છે. કૃપા કરીને સાચી બેકઅપ ફાઈલ સિલેક્ટ કરો.");
+              }
+            }
+          };
+          input.click();
+        } else {
+          alert("ફાઇલ જોડવામાં ક્ષતિ: " + err.message);
+        }
       }
     }
   };
