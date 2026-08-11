@@ -1,0 +1,17 @@
+{
+  "short_name": "સાર્વજનિક ટ્રસ્ટ",
+  "name": "શ્રી સાર્વજનિક કલ્યાણ ટ્રસ્ટ - એકાઉન્ટિંગ અને મેનેજમેન્ટ",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "display": "standalone",
+  "orientation": "any"
+}

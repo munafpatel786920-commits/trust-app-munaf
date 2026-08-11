@@ -36,9 +36,14 @@ import {
   Eye,
   EyeOff,
   ShoppingBag,
-  Calculator
+  Calculator,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { registerServiceWorker, checkServerVersion, reloadToUpdate } from './utils/pwaUpdate';
 
 import {
   UserRole,
@@ -108,15 +113,39 @@ export default function App() {
     return (localStorage.getItem('trust_app_mode') as any) || 'hybrid';
   });
 
-  // Online connection status
+  // Online connection status & PWA update status
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [hasAppUpdate, setHasAppUpdate] = useState<boolean>(false);
+  const [serverVersionNum, setServerVersionNum] = useState<string>('');
 
   useEffect(() => {
+    // 1. Register Service Worker for PWA offline capabilities
+    registerServiceWorker(() => {
+      setHasAppUpdate(true);
+    });
+
+    // 2. Initial version check if online
+    if (navigator.onLine) {
+      checkServerVersion().then((res) => {
+        if (res.hasNewVersion) {
+          setHasAppUpdate(true);
+          setServerVersionNum(res.version || '');
+        }
+      });
+    }
+
     const handleOnline = () => {
       setIsOnline(true);
       if (appMode !== 'offline') {
         syncToFirebaseAndCloud();
       }
+      // Check for GitHub / Server updates as soon as internet connects
+      checkServerVersion().then((res) => {
+        if (res.hasNewVersion) {
+          setHasAppUpdate(true);
+          setServerVersionNum(res.version || '');
+        }
+      });
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -3001,6 +3030,10 @@ export default function App() {
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
+                {/* Dummy hidden fields to capture browser auto-fill */}
+                <input type="text" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
+                <input type="password" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
+
                 {/* Login Error Notification Banner */}
                 {loginError && (
                   <motion.div 
@@ -3104,10 +3137,10 @@ export default function App() {
 
                 {/* Username */}
                 <div>
-                  <label htmlFor="secure_login_user_field" className="block text-xs font-bold text-slate-500 mb-1">વપરાશકર્તા નામ (Username - English only) *</label>
+                  <label htmlFor="trust_login_usr" className="block text-xs font-bold text-slate-500 mb-1">વપરાશકર્તા નામ (Username - English only) *</label>
                   <input
-                    id="secure_login_user_field"
-                    name="secure_login_user_field"
+                    id="trust_login_usr"
+                    name="trust_login_usr"
                     type="text"
                     value={loginUsername}
                     onChange={(e) => {
@@ -3119,7 +3152,7 @@ export default function App() {
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck="false"
-                    autoComplete="nope"
+                    autoComplete="off"
                     className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500 font-mono"
                     required
                   />
@@ -3127,11 +3160,13 @@ export default function App() {
 
                 {/* Password */}
                 <div>
-                  <label htmlFor="secure_login_pass_field" className="block text-xs font-bold text-slate-500 mb-1">સુરક્ષા પાસવર્ડ (Password - English only) *</label>
+                  <label htmlFor="trust_login_pwd" className="block text-xs font-bold text-slate-500 mb-1">સુરક્ષા પાસવર્ડ (Password - English only) *</label>
                   <input
-                    id="secure_login_pass_field"
-                    name="secure_login_pass_field"
+                    id="trust_login_pwd"
+                    name="trust_login_pwd"
                     type="text"
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readonly')}
                     style={{ WebkitTextSecurity: 'disc', MozAppearance: 'none' } as React.CSSProperties}
                     value={loginPassword}
                     onChange={(e) => {
@@ -3143,7 +3178,7 @@ export default function App() {
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck="false"
-                    autoComplete="new-password"
+                    autoComplete="one-time-code"
                     className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500 font-mono"
                     required
                   />
@@ -3256,6 +3291,42 @@ export default function App() {
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 ${mainBg}`}>
       
+      {/* Automatic GitHub / Server Internet Update Notification Banner */}
+      <AnimatePresence>
+        {hasAppUpdate && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-gradient-to-r from-blue-700 via-indigo-700 to-emerald-700 text-white p-3 px-4 flex flex-wrap justify-between items-center text-xs font-bold shadow-xl z-50 sticky top-0"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg">
+                <RefreshCw className="w-4 h-4 text-yellow-300 animate-spin" />
+              </span>
+              <div>
+                <div className="font-black text-sm flex items-center gap-2 text-yellow-300">
+                  <span>⚡ ઇન્ટરનેટ કનેક્ટ થયું - નવું ગિટહબ / સર્વર અપડેટ ઉપલબ્ધ છે!</span>
+                  {serverVersionNum && <span className="bg-yellow-400 text-slate-900 text-[10px] px-2 py-0.5 rounded-full font-bold">v{serverVersionNum}</span>}
+                </div>
+                <div className="text-[11px] font-medium opacity-90">
+                  તમારા ગિટહબ રેપો/સર્વર પર થયેલ સુધારા ઇન્ટરનેટ વડે સિંક થઈ ગયા છે. નવું વર્ઝન તરત લાગુ કરવા માટે નીચે બટન પર ક્લિક કરો.
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              <button
+                onClick={() => reloadToUpdate(serverVersionNum)}
+                className="px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-extrabold rounded-xl shadow-md transition-all cursor-pointer text-xs flex items-center gap-1.5 active:scale-95"
+              >
+                <Download className="w-4 h-4" />
+                હમણાં અપડેટ કરો (Reload & Update)
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Panel Frame (Sidebar removed, Control Panel available on Dashboard) */}
       <div className="flex-1 flex flex-col min-w-0">
         
@@ -3407,21 +3478,6 @@ export default function App() {
             >
               <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 animate-pulse" />
               <span>{formatLiveDateTime(liveDateTime)}</span>
-            </span>
-
-            {/* Connection Status & Mode Indicator */}
-            <span
-              className={`font-bold text-[11px] hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border shadow-sm shrink-0 ${
-                isOnline
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-              }`}
-              title="કનેક્શન અને સિંક મોડ સ્થિતિ"
-            >
-              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
-              <span>
-                {appMode === 'offline' ? 'ઓફલાઇન મોડ' : appMode === 'online' ? 'ઓનલાઇન મોડ' : 'હાઇબ્રિડ મોડ'} ({isOnline ? 'ઓનલાઇન' : 'ઓફલાઇન'})
-              </span>
             </span>
 
             {/* PC File Sync Menu Dropdown */}
