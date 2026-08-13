@@ -13,7 +13,8 @@ export const DEFAULT_USERS: User[] = [
     role: 'Admin',
     roleGuj: 'પ્રશાસક (Administrator)',
     passwordHash: 'admin123',
-    isActive: true
+    isActive: true,
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
   },
   {
     id: 'usr2',
@@ -22,7 +23,8 @@ export const DEFAULT_USERS: User[] = [
     role: 'Accountant',
     roleGuj: 'નામું રાખનાર (Accountant)',
     passwordHash: 'acc123',
-    isActive: true
+    isActive: true,
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
   },
   {
     id: 'usr3',
@@ -31,7 +33,8 @@ export const DEFAULT_USERS: User[] = [
     role: 'DataEntry',
     roleGuj: 'ડેટા એન્ટ્રી ઓપરેટર (Data Entry)',
     passwordHash: 'op123',
-    isActive: true
+    isActive: true,
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
   },
   {
     id: 'usr4',
@@ -40,7 +43,8 @@ export const DEFAULT_USERS: User[] = [
     role: 'ReadOnly',
     roleGuj: 'માત્ર વાંચવા માટે (Read Only)',
     passwordHash: 'read123',
-    isActive: true
+    isActive: true,
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
   }
 ];
 

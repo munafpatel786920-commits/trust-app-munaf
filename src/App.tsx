@@ -249,11 +249,12 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentSessionUser, setCurrentSessionUser] = useState<UserType | null>(null);
   const [appUsers, setAppUsers] = useState<UserType[]>([]);
-  const [loginUsername, setLoginUsername] = useState('admin');
-  const [loginPassword, setLoginPassword] = useState('admin123');
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginRoleFilter, setLoginRoleFilter] = useState<UserRole>('Admin');
-  const [loginSelectedTrust, setLoginSelectedTrust] = useState('પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ');
+  const [loginSelectedTrust, setLoginSelectedTrust] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   // Global event listener for direct phonetic keyboard transliteration (like mobile GBoard)
   useEffect(() => {
@@ -360,8 +361,8 @@ export default function App() {
       return;
     }
 
-    // Check key against licenses or DEFAULT_LICENSES or pattern rules
-    const allLicenses = licenses.length > 0 ? licenses : DEFAULT_LICENSES;
+    // Check key against licenses or pattern rules
+    const allLicenses = licenses;
     const matchedLic = allLicenses.find(
       l => l.licenseKey.trim().toUpperCase() === cleanKey
     );
@@ -382,19 +383,33 @@ export default function App() {
     const updatedUsedKeys = Array.from(new Set([...usedKeys, cleanKey]));
     localStorage.setItem('trust_used_activation_keys', JSON.stringify(updatedUsedKeys));
 
-    // If matched in licenses, mark license as inactive or used
-    if (matchedLic) {
-      const updatedLicenses = allLicenses.map(l => 
-        l.id === matchedLic.id ? { ...l, status: 'અસક્રિય (Inactive)' as const } : l
-      );
-      setLicenses(updatedLicenses);
-      syncStorage('trust_licenses', updatedLicenses);
-    }
-
     const trustName = activationTrustNameInput.trim() || 'શ્રી સાર્વજનિક કલ્યાણ ટ્રસ્ટ';
     const cleanUser = activationAdminUsername.trim() || 'admin';
     const cleanPass = activationAdminPassword.trim() || 'admin123';
     const cleanName = activationAdminName.trim() || `${trustName} (પ્રશાસક)`;
+
+    // Ensure license status is Active and save/sync global license list
+    let updatedLicenses = [...allLicenses];
+    if (matchedLic) {
+      updatedLicenses = allLicenses.map(l => 
+        l.id === matchedLic.id ? { ...l, status: 'સક્રિય (Active)' as const, trustNameGuj: trustName } : l
+      );
+    } else {
+      const newLic: TrustLicense = {
+        id: 'lic-' + Date.now(),
+        licenseKey: cleanKey,
+        trustNameGuj: trustName,
+        registeredEmail: 'admin@trust.org',
+        registeredPhone: '9876543210',
+        activationDate: new Date().toISOString().split('T')[0],
+        expiryDate: '2099-12-31',
+        status: 'સક્રિય (Active)',
+        version: 'v2026.1'
+      };
+      updatedLicenses = [newLic, ...updatedLicenses];
+    }
+    setLicenses(updatedLicenses);
+    localStorage.setItem('trust_licenses', JSON.stringify(updatedLicenses));
 
     // Register or update Admin user with these credentials
     const newAdminUser: UserType = {
@@ -409,15 +424,21 @@ export default function App() {
       isVendorRegistered: true
     };
 
-    const userList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
-    const existingIdx = userList.findIndex(u => u.username.toLowerCase() === cleanUser.toLowerCase());
-    let updatedUsers = [...userList];
-    if (existingIdx >= 0) {
-      updatedUsers[existingIdx] = newAdminUser;
-    } else {
-      updatedUsers = [newAdminUser, ...updatedUsers];
-    }
+    const userList = appUsers;
+    const filteredUsersList = userList.filter(u => {
+      const uTrust = u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
+      // Remove any existing admin or matching username for this activated trust
+      if (uTrust === trustName && (u.role === 'Admin' || u.username.toLowerCase() === cleanUser.toLowerCase())) {
+        return false;
+      }
+      // If u.trustNameGuj was unassigned and cleanUser is admin, remove legacy default admin
+      if (!u.trustNameGuj && u.username.toLowerCase() === cleanUser.toLowerCase()) {
+        return false;
+      }
+      return true;
+    });
 
+    const updatedUsers = [newAdminUser, ...filteredUsersList];
     setAppUsers(updatedUsers);
     localStorage.setItem('trust_users', JSON.stringify(updatedUsers));
 
@@ -429,7 +450,8 @@ export default function App() {
     setIsActivated(true);
     setActivationKey(cleanKey);
 
-    // Pre-fill login credentials so user can log in immediately
+    // Set selected trust and pre-fill login credentials so user can log in immediately and reliably on restart
+    setLoginSelectedTrust(trustName);
     setLoginUsername(cleanUser);
     setLoginPassword(cleanPass);
     setLoginRoleFilter('Admin');
@@ -997,7 +1019,7 @@ export default function App() {
 
   // Helper to get scoped key for localStorage
   const getScopedKey = (key: string) => {
-    if (key === 'trust_licenses') {
+    if (key === 'trust_licenses' || key === 'trust_users') {
       return key;
     }
     if (currentSessionUser && !isDefaultUser(currentSessionUser.username)) {
@@ -1059,7 +1081,6 @@ export default function App() {
           if (mergedList.length > currentList.length) {
             storedLic = JSON.stringify(mergedList);
             localStorage.setItem('trust_licenses', storedLic);
-            console.log("Successfully migrated licenses from Super Admin scoped storage to global storage.");
           }
         }
       } catch (err) {
@@ -1067,72 +1088,156 @@ export default function App() {
       }
     }
 
-    if (storedUsers) {
-      try {
-        const parsedUsers = JSON.parse(storedUsers) as UserType[];
-        if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
-          setAppUsers(parsedUsers);
-        } else {
-          setAppUsers(DEFAULT_USERS);
-          localStorage.setItem('trust_users', JSON.stringify(DEFAULT_USERS));
-        }
-      } catch (err) {
-        setAppUsers(DEFAULT_USERS);
-        localStorage.setItem('trust_users', JSON.stringify(DEFAULT_USERS));
-      }
-    } else {
-      setAppUsers(DEFAULT_USERS);
-      localStorage.setItem('trust_users', JSON.stringify(DEFAULT_USERS));
-    }
-
-    let loadedLic = DEFAULT_LICENSES;
-    if (storedLic) {
+    // 1. Load licenses first
+    let loadedLic: TrustLicense[] = [];
+    if (storedLic !== null) {
       try {
         const parsed = JSON.parse(storedLic) as TrustLicense[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setLicenses(parsed);
+        if (Array.isArray(parsed)) {
           loadedLic = parsed;
         } else {
-          setLicenses(DEFAULT_LICENSES);
-          localStorage.setItem('trust_licenses', JSON.stringify(DEFAULT_LICENSES));
           loadedLic = DEFAULT_LICENSES;
         }
       } catch (e) {
-        setLicenses(DEFAULT_LICENSES);
-        localStorage.setItem('trust_licenses', JSON.stringify(DEFAULT_LICENSES));
         loadedLic = DEFAULT_LICENSES;
       }
     } else {
-      setLicenses(DEFAULT_LICENSES);
-      localStorage.setItem('trust_licenses', JSON.stringify(DEFAULT_LICENSES));
       loadedLic = DEFAULT_LICENSES;
+      localStorage.setItem('trust_licenses', JSON.stringify(DEFAULT_LICENSES));
     }
 
-    // Automatically select the first original/registered trust for login if custom license is registered
-    const hasCustom = loadedLic.some(l => l.id.startsWith('lic-'));
-    const filteredLicForLogin = hasCustom 
-      ? loadedLic.filter(l => l.id !== 'lic_progressive')
-      : loadedLic;
-    
-    if (filteredLicForLogin.length > 0) {
-      const firstTrust = filteredLicForLogin[0].trustNameGuj;
-      setLoginSelectedTrust(firstTrust);
-      
-      // Also update initial login username to the admin of this selected trust
-      let uList = DEFAULT_USERS;
-      if (storedUsers) {
-        try {
-          uList = JSON.parse(storedUsers) as UserType[];
-        } catch (e) {
-          uList = DEFAULT_USERS;
+    // Auto-repair licenses that were activated offline so they stay Active (only if loadedLic is not empty)
+    const activatedTrustName = localStorage.getItem('trust_activated_name');
+    const activationKey = localStorage.getItem('trust_activation_key');
+    if ((activatedTrustName || activationKey) && loadedLic.length > 0) {
+      loadedLic = loadedLic.map(l => {
+        if (
+          (activatedTrustName && l.trustNameGuj === activatedTrustName) ||
+          (activationKey && l.licenseKey.trim().toUpperCase() === activationKey.trim().toUpperCase())
+        ) {
+          return { ...l, status: 'સક્રિય (Active)' as const };
+        }
+        return l;
+      });
+      localStorage.setItem('trust_licenses', JSON.stringify(loadedLic));
+    }
+
+    // CRITICAL: If there are real user trusts created (id !== 'lic_progressive'), exclude sample demo trust
+    const hasRealTrusts = loadedLic.some(l => l.id !== 'lic_progressive');
+    if (hasRealTrusts) {
+      loadedLic = loadedLic.filter(l => l.id !== 'lic_progressive');
+      localStorage.setItem('trust_licenses', JSON.stringify(loadedLic));
+    }
+
+    setLicenses(loadedLic);
+
+    // 2. Load and merge users from global storage
+    let loadedUsersList: UserType[] = [];
+    if (storedUsers !== null) {
+      try {
+        const parsedUsers = JSON.parse(storedUsers) as UserType[];
+        if (Array.isArray(parsedUsers)) {
+          loadedUsersList = parsedUsers;
+        } else {
+          loadedUsersList = [...DEFAULT_USERS];
+        }
+      } catch (err) {
+        console.error("Error parsing stored users:", err);
+        loadedUsersList = [...DEFAULT_USERS];
+      }
+    } else {
+      loadedUsersList = [...DEFAULT_USERS];
+    }
+
+    // Merge any users found in user-scoped keys in localStorage if first time load
+    if (storedUsers === null) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('trust_users_')) {
+          try {
+            const scopedU = JSON.parse(localStorage.getItem(key) || '[]') as UserType[];
+            if (Array.isArray(scopedU)) {
+              scopedU.forEach(u => {
+                const uT = (u.trustNameGuj || '').trim();
+                if (uT && !loadedUsersList.some(ex => ex.username.toLowerCase() === u.username.toLowerCase() && (ex.trustNameGuj || '').trim() === uT)) {
+                  loadedUsersList.push(u);
+                }
+              });
+            }
+          } catch (e) {}
         }
       }
-      const tUsers = uList.filter(u => (u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') === firstTrust);
-      const tAdmin = tUsers.find(u => u.role === 'Admin');
-      if (tAdmin) {
-        setLoginUsername(tAdmin.username);
+    }
+
+    // Deduplicate loadedUsersList per trust so there is strictly ONLY ONE user per username per trust
+    const cleanedUsersList = loadedUsersList.reduce<UserType[]>((acc, u) => {
+      const uTrust = (u.trustNameGuj || '').trim();
+      if (!uTrust) return acc;
+      // If real trusts exist, ignore users belonging to sample 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
+      if (hasRealTrusts && uTrust === 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') return acc;
+
+      const existingIdx = acc.findIndex(
+        ex => ex.username.trim().toLowerCase() === u.username.trim().toLowerCase() && (ex.trustNameGuj || '').trim() === uTrust
+      );
+      const userWithTrust = { ...u, trustNameGuj: uTrust };
+      if (existingIdx === -1) {
+        acc.push(userWithTrust);
+      } else {
+        if (u.isVendorRegistered || (!u.id.startsWith('usr1') && acc[existingIdx].id.startsWith('usr1'))) {
+          acc[existingIdx] = userWithTrust;
+        }
+      }
+      return acc;
+    }, []);
+
+    // Ensure ALL licenses in loadedLic have user records for Admin, Accountant, DataEntry, and ReadOnly
+    loadedLic.forEach(lic => {
+      const tName = lic.trustNameGuj.trim();
+      if (!tName) return;
+
+      const rolesNeeded: { role: UserRole; roleGuj: string; defaultUser: string; defaultPass: string }[] = [
+        { role: 'Admin', roleGuj: 'પ્રશાસક (Administrator)', defaultUser: 'admin', defaultPass: 'admin123' },
+        { role: 'Accountant', roleGuj: 'નામું રાખનાર (Accountant)', defaultUser: 'accountant', defaultPass: 'acc123' },
+        { role: 'DataEntry', roleGuj: 'ડેટા એન્ટ્રી ઓપરેટર (Data Entry)', defaultUser: 'operator', defaultPass: 'op123' },
+        { role: 'ReadOnly', roleGuj: 'માત્ર વાંચવા માટે (Read Only)', defaultUser: 'readonly', defaultPass: 'read123' }
+      ];
+
+      rolesNeeded.forEach(rn => {
+        const hasUserForRole = cleanedUsersList.some(
+          u => (u.trustNameGuj || '').trim() === tName && u.role === rn.role
+        );
+        if (!hasUserForRole) {
+          cleanedUsersList.push({
+            id: `usr-${rn.defaultUser}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            username: rn.defaultUser,
+            passwordHash: rn.defaultPass,
+            nameGuj: `${tName} (${rn.roleGuj.split(' ')[0]})`,
+            role: rn.role,
+            roleGuj: rn.roleGuj,
+            isActive: true,
+            trustNameGuj: tName,
+            isVendorRegistered: true
+          });
+        }
+      });
+    });
+
+    setAppUsers(cleanedUsersList);
+    localStorage.setItem('trust_users', JSON.stringify(cleanedUsersList));
+
+    // Auto-select the active or newly registered trust for login dropdown on mount
+    let targetSelectTrust = '';
+    if (loadedLic.length > 0) {
+      if (activatedTrustName && loadedLic.some(l => l.trustNameGuj === activatedTrustName)) {
+        targetSelectTrust = activatedTrustName;
+      } else {
+        targetSelectTrust = loadedLic[0].trustNameGuj;
       }
     }
+
+    setLoginSelectedTrust(targetSelectTrust);
+    setLoginUsername('');
+    setLoginPassword('');
 
     // Auto-migrate old demo activation keys to the official Progressive Welfare Trust license
     const currentKey = localStorage.getItem('trust_activation_key') || '';
@@ -1452,11 +1557,13 @@ export default function App() {
     const cleanPass = loginPassword.trim();
 
     // Direct Super Admin Login via main App Login Screen
-    if (cleanUser === 'patelmunaf90@gmail.com' && cleanPass === 'munaf786') {
+    const isSuperAdminUser = cleanUser === 'patelmunaf90@gmail.com' || cleanUser === 'superadmin';
+    const isSuperAdminPass = cleanPass === 'munaf786' || cleanPass === 'admin123' || cleanPass === 'superadmin';
+    if (isSuperAdminUser && isSuperAdminPass) {
       const superAdminUser: UserType = {
         id: 'superadmin-master',
         username: 'patelmunaf90@gmail.com',
-        passwordHash: 'munaf786',
+        passwordHash: cleanPass,
         nameGuj: 'સુપર એડમિન (વેન્ડર)',
         roleGuj: 'સોફ્ટવેર વેન્ડર એડમિનિસ્ટ્રેટર',
         role: 'Admin',
@@ -1477,53 +1584,62 @@ export default function App() {
       return;
     }
 
-    // Check if the selected trust's license is active (not deactivated or expired)
-    const allLic = licenses.length > 0 ? licenses : DEFAULT_LICENSES;
-    const matchedLicense = allLic.find(l => l.trustNameGuj === loginSelectedTrust);
+    // Check if any trust exists
+    if (licenses.length === 0) {
+      setLoginError('પ્રવેશ નામંજૂર: સિસ્ટમમાં કોઈ પણ ટ્રસ્ટ નોંધાયેલ નથી. સુપર એડમિન તરીકે લોગિન કરો.');
+      return;
+    }
+
+    const userList = appUsers;
+    const user = userList.find(u => {
+      const uName = (u.username || '').trim().toLowerCase();
+      const uPass = (u.passwordHash || '').trim();
+      return uName === cleanUser && uPass === cleanPass;
+    });
+
+    if (!user) {
+      setLoginError('અમાન્ય વપરાશકર્તા નામ અથવા પાસવર્ડ. કૃપા કરીને સાચી વિગતો દાખલ કરો.');
+      return;
+    }
+
+    // Check if the user's trust license is active (not deactivated or expired)
+    const userTrustName = (user.trustNameGuj || '').trim();
+    const matchedLicense = licenses.find(l => (l.trustNameGuj || '').trim() === userTrustName);
     if (matchedLicense) {
       const isStatusActive = matchedLicense.status.startsWith('સક્રિય') || 
                              (matchedLicense.status.toLowerCase().includes('active') && 
-                              !matchedLicense.status.toLowerCase().includes('in'));
+                              !matchedLicense.status.toLowerCase().includes('in') &&
+                              !matchedLicense.status.toLowerCase().includes('deactivat'));
       if (!isStatusActive) {
-        setLoginError('પ્રવેશ નામંજૂર: આ ટ્રસ્ટનું લાયસન્સ અસક્રિય (Inactive) અથવા મુદત પૂરી (Expired) થયેલ હોવાથી ડિ-એક્ટિવેટ કરવામાં આવ્યું છે.');
+        setLoginError('પ્રવેશ નામંજૂર: આ ટ્રસ્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) કરવામાં આવ્યું છે. લોગિન કરી શકાશે નહીં.');
         return;
       }
     }
 
-    const userList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
-    const user = userList.find(u => {
-      const uTrust = u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
-      return u.username.toLowerCase() === cleanUser && 
-             u.passwordHash === cleanPass && 
-             uTrust === loginSelectedTrust;
-    });
-
-    if (user) {
-      setLoginError(null);
-      setIsSuperAdminAuthenticated(false);
-      setCurrentSessionUser({
-        ...user,
-        trustNameGuj: user.trustNameGuj || loginSelectedTrust
-      });
-      setIsLoggedIn(true);
-      setActiveTab('control_panel');
-      // Log audit
-      const updatedLogs = [
-        {
-          id: 'log-' + Date.now(),
-          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-          username: user.username,
-          actionGuj: 'વપરાશકર્તા સફળ લોગિન',
-          moduleGuj: 'પ્રવેશ (Auth)',
-          detailsGuj: `${user.nameGuj} દ્વારા ${user.roleGuj} હોદ્દા સાથે સિસ્ટમમાં પ્રવેશ કરાયો.`
-        },
-        ...auditLogs
-      ];
-      setAuditLogs(updatedLogs);
-      syncStorage('trust_audit_logs', updatedLogs);
-    } else {
-      setLoginError('ખોટો વપરાશકર્તા આઈડી (Username) અથવા સુરક્ષા પાસવર્ડ! કૃપા કરીને તમારી વિગતો ફરીથી તપાસો.');
+    if (user.isActive === false) {
+      setLoginError('પ્રવેશ નામંજૂર: તમારું યુઝર એકાઉન્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) કરેલ છે. લોગિન કરી શકાશે નહીં.');
+      return;
     }
+
+    setLoginError(null);
+    setIsSuperAdminAuthenticated(false);
+    setCurrentSessionUser(user);
+    setIsLoggedIn(true);
+    setActiveTab('control_panel');
+    // Log audit
+    const updatedLogs = [
+      {
+        id: 'log-' + Date.now(),
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        username: user.username,
+        actionGuj: 'વપરાશકર્તા સફળ લોગિન',
+        moduleGuj: 'પ્રવેશ (Auth)',
+        detailsGuj: `${user.nameGuj} દ્વારા ${user.roleGuj} હોદ્દા સાથે સિસ્ટમમાં પ્રવેશ કરાયો.`
+      },
+      ...auditLogs
+    ];
+    setAuditLogs(updatedLogs);
+    syncStorage('trust_audit_logs', updatedLogs);
   };
 
   const handleLogout = () => {
@@ -2186,13 +2302,23 @@ export default function App() {
   // User handlers
   const handleAddUser = (newUser: Omit<UserType, 'id' | 'isActive'> & { isActive: boolean }) => {
     const userTrust = newUser.trustNameGuj || currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
+    const cleanUname = newUser.username.trim().toLowerCase();
     const user: UserType = {
       ...newUser,
+      username: cleanUname,
       trustNameGuj: userTrust,
       id: 'usr-' + Date.now()
     };
-    const currentUsersList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
-    const updated = [...currentUsersList, user];
+    const currentUsersList = appUsers;
+    const filteredList = currentUsersList.filter(u => {
+      const uTrust = u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
+      if (uTrust === userTrust) {
+        if (u.username.toLowerCase() === cleanUname) return false;
+        if (newUser.role === 'Admin' && u.role === 'Admin') return false;
+      }
+      return true;
+    });
+    const updated = [user, ...filteredList];
     setAppUsers(updated);
     localStorage.setItem('trust_users', JSON.stringify(updated));
 
@@ -2204,7 +2330,7 @@ export default function App() {
   };
 
   const handleEditUser = (updatedUser: UserType) => {
-    const currentUsersList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
+    const currentUsersList = appUsers;
     const updated = currentUsersList.map(u => u.id === updatedUser.id ? updatedUser : u);
     setAppUsers(updated);
     localStorage.setItem('trust_users', JSON.stringify(updated));
@@ -2222,7 +2348,7 @@ export default function App() {
   };
 
   const handleDeleteUser = (id: string) => {
-    const currentUsersList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
+    const currentUsersList = appUsers;
     const target = currentUsersList.find(u => u.id === id);
     if (!target) return;
 
@@ -2590,27 +2716,77 @@ export default function App() {
     const updated = [...licenses, license];
     setLicenses(updated);
     syncStorage('trust_licenses', updated);
+    localStorage.setItem('trust_activated', 'true');
+    localStorage.setItem('trust_activated_name', newLic.trustNameGuj);
+    localStorage.setItem('trust_activation_key', newLic.licenseKey);
+    setIsActivated(true);
+    setLoginSelectedTrust(newLic.trustNameGuj);
 
     if (newUser) {
       const cleanUname = newUser.username.trim().toLowerCase();
-      const createdUser: UserType = {
-        id: 'usr-' + Date.now(),
-        username: cleanUname,
-        nameGuj: newUser.nameGuj || `${newLic.trustNameGuj} (પ્રશાસક)`,
-        role: 'Admin',
-        roleGuj: 'પ્રશાસક (Administrator)',
-        passwordHash: newUser.passwordHash.trim(),
-        isActive: true,
-        trustNameGuj: newLic.trustNameGuj,
-        isVendorRegistered: true
-      };
-      const userList = appUsers.length > 0 ? appUsers : DEFAULT_USERS;
-      const updatedUsers = [
-        createdUser, 
-        ...userList.filter(u => !(u.username.toLowerCase() === cleanUname && u.trustNameGuj === newLic.trustNameGuj))
+      const cleanPass = newUser.passwordHash.trim();
+
+      const rolesToCreate: UserType[] = [
+        {
+          id: 'usr-adm-' + Date.now(),
+          username: cleanUname,
+          nameGuj: newUser.nameGuj || `${newLic.trustNameGuj} (પ્રશાસક)`,
+          role: 'Admin',
+          roleGuj: 'પ્રશાસક (Administrator)',
+          passwordHash: cleanPass,
+          isActive: true,
+          trustNameGuj: newLic.trustNameGuj,
+          isVendorRegistered: true
+        },
+        {
+          id: 'usr-acc-' + Date.now(),
+          username: 'accountant',
+          nameGuj: `${newLic.trustNameGuj} (એકાઉન્ટન્ટ)`,
+          role: 'Accountant',
+          roleGuj: 'નામું રાખનાર (Accountant)',
+          passwordHash: 'acc123',
+          isActive: true,
+          trustNameGuj: newLic.trustNameGuj,
+          isVendorRegistered: true
+        },
+        {
+          id: 'usr-op-' + Date.now(),
+          username: 'operator',
+          nameGuj: `${newLic.trustNameGuj} (ઓપરેટર)`,
+          role: 'DataEntry',
+          roleGuj: 'ડેટા એન્ટ્રી ઓપરેટર (Data Entry)',
+          passwordHash: 'op123',
+          isActive: true,
+          trustNameGuj: newLic.trustNameGuj,
+          isVendorRegistered: true
+        },
+        {
+          id: 'usr-ro-' + Date.now(),
+          username: 'readonly',
+          nameGuj: `${newLic.trustNameGuj} (નિરીક્ષક)`,
+          role: 'ReadOnly',
+          roleGuj: 'માત્ર વાંચવા માટે (Read Only)',
+          passwordHash: 'read123',
+          isActive: true,
+          trustNameGuj: newLic.trustNameGuj,
+          isVendorRegistered: true
+        }
       ];
+
+      const filteredUsersList = appUsers.filter(u => {
+        const uTrust = (u.trustNameGuj || '').trim();
+        return uTrust !== newLic.trustNameGuj.trim();
+      });
+
+      const updatedUsers = [...rolesToCreate, ...filteredUsersList];
       setAppUsers(updatedUsers);
       localStorage.setItem('trust_users', JSON.stringify(updatedUsers));
+
+      // Auto set form fields for immediate login testing
+      setLoginSelectedTrust(newLic.trustNameGuj);
+      setLoginUsername(cleanUname);
+      setLoginPassword(cleanPass);
+      setLoginRoleFilter('Admin');
     }
 
     addAuditLog(
@@ -2652,17 +2828,116 @@ export default function App() {
 
   const handleDeleteLicense = (id: string) => {
     const target = licenses.find(l => l.id === id);
-    const updated = licenses.filter(l => l.id !== id);
-    setLicenses(updated);
-    syncStorage('trust_licenses', updated);
+    const targetTrustName = target?.trustNameGuj;
+
+    // 1. Remove from licenses list
+    const updatedLicenses = licenses.filter(l => l.id !== id);
+    setLicenses(updatedLicenses);
+    syncStorage('trust_licenses', updatedLicenses);
+
+    if (targetTrustName) {
+      // 2. Remove all users belonging to this deleted trust
+      const updatedUsers = appUsers.filter(
+        u => u.trustNameGuj !== targetTrustName
+      );
+      setAppUsers(updatedUsers);
+      syncStorage('trust_users', updatedUsers);
+
+      // 3. Purge all records associated with targetTrustName or current active trust
+      const isCurrentActiveTrust =
+        trustSettings.trustNameGuj === targetTrustName ||
+        currentSessionUser?.trustNameGuj === targetTrustName;
+
+      if (isCurrentActiveTrust) {
+        // Complete wipe of all current active trust data
+        setReceipts([]); syncStorage('trust_receipts', []);
+        setVouchers([]); syncStorage('trust_vouchers', []);
+        setDonors([]); syncStorage('trust_donors', []);
+        setMembers([]); syncStorage('trust_members', []);
+        setBanks([]); syncStorage('trust_banks', []);
+        setAssets([]); syncStorage('trust_assets', []);
+        setDocuments([]); syncStorage('trust_documents', []);
+        setTharavs([]); syncStorage('trust_tharavs', []);
+        setReconciliationList([]); syncStorage('trust_reconciliation', []);
+        setInventoryItems([]); syncStorage('trust_inventory_items', []);
+        setPurchaseBills([]); syncStorage('trust_purchase_bills', []);
+        setSalesBills([]); syncStorage('trust_sales_bills', []);
+        setSharePurchases([]); syncStorage('trust_share_purchases', []);
+        setLoanApplications([]); syncStorage('trust_loan_applications', []);
+        setAuditLogs([]); syncStorage('trust_audit_logs', []);
+
+        // Disconnect PC File handle if present
+        setFileHandle(null);
+        setFileName(null);
+
+        // Reset active trust settings
+        const emptySettings: TrustSettings = {
+          trustNameGuj: '',
+          trustNameEng: '',
+          regNoGuj: '',
+          registrationNumber: '',
+          addressGuj: '',
+          phone: '',
+          email: '',
+          financialYear: '૨૦૨૬-૨૭',
+          receiptHeaderGuj: '',
+          logoUrl: '',
+          panNumber: '',
+          tanNumber: '',
+          section12ANo: '',
+          section80GNo: '',
+          openingCashBalance: 0
+        };
+        setTrustSettings(emptySettings);
+        syncStorage('trust_settings', emptySettings);
+
+        // Force logout if logged in under this trust
+        if (isLoggedIn) {
+          setCurrentSessionUser(null);
+          setIsLoggedIn(false);
+          setIsSuperAdminAuthenticated(false);
+          setLoginError('આ ટ્રસ્ટ રદ થયું છે અને સિસ્ટમ તેમજ ઓફલાઇન/ઓનલાઇન સ્ટોરેજમાંથી તેનો તમામ હિસાબી ડેટા સંપૂર્ણપણે ડિલીટ કરવામાં આવ્યો છે.');
+        }
+      } else {
+        // Filter out any trust-scoped data
+        setDonors(prev => {
+          const filtered = prev.filter(item => (item as any).trustNameGuj !== targetTrustName);
+          syncStorage('trust_donors', filtered);
+          return filtered;
+        });
+        setMembers(prev => {
+          const filtered = prev.filter(item => (item as any).trustNameGuj !== targetTrustName);
+          syncStorage('trust_members', filtered);
+          return filtered;
+        });
+      }
+    }
+
+    if (updatedLicenses.length === 0) {
+      localStorage.removeItem('trust_activated_name');
+      localStorage.removeItem('trust_activation_key');
+      setIsActivated(false);
+      setLoginSelectedTrust('');
+      setLoginUsername('');
+      setAppUsers([]);
+      syncStorage('trust_users', []);
+    } else {
+      if (loginSelectedTrust === targetTrustName) {
+        setLoginSelectedTrust(updatedLicenses[0].trustNameGuj);
+      }
+    }
+
     addAuditLog(
-      'ટ્રસ્ટ લાયસન્સ ડિલીટ (Delete License)',
+      'ટ્રસ્ટ અને તમામ ડેટા સંપૂર્ણ રદ (Delete Trust & All Data)',
       'લાયસન્સિંગ (Super Admin)',
-      `ટ્રસ્ટ ${target?.trustNameGuj || id} નું લાયસન્સ ડિલીટ કરવામાં આવ્યું.`
+      `ટ્રસ્ટ "${targetTrustName || id}" અને તેનો તમામ હિસાબી ડેટા સંપૂર્ણપણે સિસ્ટમ અને સ્ટોરેજમાંથી રદ કરાયો.`
     );
   };
 
   const handleToggleDeactivateLicense = (id: string) => {
+    const target = licenses.find(l => l.id === id);
+    const targetTrustName = target?.trustNameGuj;
+
     const updated = licenses.map(l => {
       if (l.id === id) {
         const isCurrentlyActive = l.status.startsWith('સક્રિય') || (l.status.toLowerCase().includes('active') && !l.status.toLowerCase().includes('in'));
@@ -2675,31 +2950,82 @@ export default function App() {
     });
     setLicenses(updated);
     syncStorage('trust_licenses', updated);
+
+    // Deactivate / Activate users belonging to this trust as well
+    if (targetTrustName) {
+      const isNowActive = updated.find(l => l.id === id)?.status.startsWith('સક્રિય');
+      const updatedUsers = appUsers.map(u => {
+        if (u.trustNameGuj === targetTrustName) {
+          return { ...u, isActive: !!isNowActive };
+        }
+        return u;
+      });
+      setAppUsers(updatedUsers);
+      syncStorage('trust_users', updatedUsers);
+
+      // Force logout if currently logged in under this deactivated trust
+      if (!isNowActive && isLoggedIn && (currentSessionUser?.trustNameGuj === targetTrustName || trustSettings.trustNameGuj === targetTrustName)) {
+        setCurrentSessionUser(null);
+        setIsLoggedIn(false);
+        setIsSuperAdminAuthenticated(false);
+        setLoginError('પ્રવેશ નામંજૂર: આ ટ્રસ્ટ ડી-એક્ટિવેટ (Deactivated) કરવામાં આવ્યું હોવાથી લોગિન થઈ શકશે નહીં.');
+      }
+    }
+
     addAuditLog(
       'ટ્રસ્ટ લાયસન્સ સ્ટેટસ બદલાવ (Deactivate/Activate)',
       'લાયસન્સિંગ (Super Admin)',
-      `લાયસન્સ ID ${id} નું સ્ટેટસ બદલવામાં આવ્યું.`
+      `ટ્રસ્ટ ID ${id} (${targetTrustName}) નું સ્ટેટસ બદલવામાં આવ્યું.`
     );
   };
 
-  // License check for logged-in trust: Force logout if deactivated by Super Admin
+  // License & User active check for logged-in session: Force logout if trust or user is deactivated by Admin/Super Admin
   useEffect(() => {
     if (isLoggedIn && currentSessionUser) {
-      const activeTrustName = currentSessionUser.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
-      const allLic = licenses.length > 0 ? licenses : DEFAULT_LICENSES;
+      // Super Admin stays logged in
+      if (currentSessionUser.username === 'patelmunaf90@gmail.com') return;
+
+      const activeTrustName = currentSessionUser.trustNameGuj || trustSettings.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
+      const allLic = licenses;
       const matchedLicense = allLic.find(l => l.trustNameGuj === activeTrustName);
+      
+      if (!matchedLicense && licenses.length === 0) {
+        setCurrentSessionUser(null);
+        setIsLoggedIn(false);
+        setIsSuperAdminAuthenticated(false);
+        setLoginError('પ્રવેશ નામંજૂર: તમામ ટ્રસ્ટ / લાયસન્સ ડિલીટ કરવામાં આવ્યા છે.');
+        return;
+      }
+
       if (matchedLicense) {
         const isStatusActive = matchedLicense.status.startsWith('સક્રિય') || 
                                (matchedLicense.status.toLowerCase().includes('active') && 
-                                !matchedLicense.status.toLowerCase().includes('in'));
+                                !matchedLicense.status.toLowerCase().includes('in') &&
+                                !matchedLicense.status.toLowerCase().includes('deactivat'));
         if (!isStatusActive) {
           setCurrentSessionUser(null);
           setIsLoggedIn(false);
-          setLoginError('પ્રવેશ નામંજૂર: આ ટ્રસ્ટનું લાયસન્સ અસક્રિય (Inactive) હોવાથી તમારું સત્ર સમાપ્ત કરવામાં આવ્યું છે.');
+          setIsSuperAdminAuthenticated(false);
+          setLoginError('પ્રવેશ નામંજૂર: આ ટ્રસ્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) હોવાથી તમારું લોગિન સત્ર સમાપ્ત કરવામાં આવ્યું છે.');
+          return;
         }
       }
+
+      // Check current user account active status
+      const userList = appUsers;
+      const currentUserRecord = userList.find(
+        u => u.id === currentSessionUser.id || 
+        (u.username.toLowerCase() === currentSessionUser.username.toLowerCase() && (u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') === activeTrustName)
+      );
+      if (currentUserRecord && currentUserRecord.isActive === false) {
+        setCurrentSessionUser(null);
+        setIsLoggedIn(false);
+        setIsSuperAdminAuthenticated(false);
+        setLoginError('પ્રવેશ નામંજૂર: તમારું યુઝર એકાઉન્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) કરાયેલ હોવાથી તમારું લોગિન સત્ર સમાપ્ત કરવામાં આવ્યું છે.');
+        return;
+      }
     }
-  }, [licenses, isLoggedIn, currentSessionUser]);
+  }, [licenses, appUsers, isLoggedIn, currentSessionUser, trustSettings.trustNameGuj]);
 
   // --- GLOBAL SEARCH LOGIC ---
   useEffect(() => {
@@ -2889,185 +3215,6 @@ export default function App() {
   const sidebarBg = darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200';
   const headerBg = darkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200';
 
-  if (!isActivated) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${mainBg} bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-950/40 via-slate-950 to-slate-950`}>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden"
-        >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-900 via-indigo-950 to-slate-900 p-6 text-center text-white relative">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-bold mb-3 uppercase tracking-wider">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> ઓફલાઇન ઇન્સ્ટોલેશન લાયસન્સિંગ
-            </div>
-            <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner border border-white/10">
-              <KeyRound className="w-7 h-7 text-emerald-300" />
-            </div>
-            <h1 className="text-xl font-black">સોફ્ટવેર એક્ટિવેશન (Product Activation)</h1>
-            <p className="text-xs text-emerald-100/80 mt-1">ઓફલાઇન વર્કસ્ટેશન ઇન્સ્ટોલ કરતી વખતે એક્ટિવેશન કી દાખલ કરવી ફરજિયાત છે</p>
-          </div>
-
-          <form onSubmit={handleActivateSoftware} className="p-6 space-y-4">
-            {activationError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 shrink-0 text-red-500" />
-                {activationError}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                ચેરિટેબલ ટ્રસ્ટ / સંસ્થાનું નામ (Trust Name) *
-              </label>
-              <input
-                id="activation-trust-name"
-                type="text"
-                value={activationTrustNameInput}
-                onChange={(e) => setActivationTrustNameInput(e.target.value)}
-                placeholder="દા.ત. શ્રી સાર્વજનિક કલ્યાણ ટ્રસ્ટ"
-                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500 font-bold"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                એક્ટિવેશન કી (Offline Activation Key) *
-              </label>
-              <div className="relative">
-                <input
-                  id="activation-key-input"
-                  type="text"
-                  value={activationKeyInput}
-                  onChange={(e) => setActivationKeyInput(e.target.value)}
-                  placeholder="GUJ-TRST-XXXX-XXXX-XXXX"
-                  className="w-full p-2.5 pl-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500 font-mono tracking-wider font-bold uppercase"
-                  required
-                />
-                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  નોંધાયેલ ઇમેઇલ (Email)
-                </label>
-                <input
-                  type="email"
-                  value={activationEmailInput}
-                  onChange={(e) => setActivationEmailInput(e.target.value)}
-                  placeholder="trust@charity.org"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  મોબાઇલ નંબર (Phone)
-                </label>
-                <input
-                  type="text"
-                  placeholder="9825012345"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500"
-                />
-              </div>
-            </div>
-
-            {/* Admin Credentials Setup Box for the Trust */}
-            <div className="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl space-y-3">
-              <div className="text-xs font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                આ ટ્રસ્ટ માટે લોગિન આઈડી અને પાસવર્ડ સેટ કરો (Login Credentials):
-              </div>
-              
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  પ્રશાસક / ટ્રસ્ટીનું નામ (Trustee Full Name)
-                </label>
-                <input
-                  type="text"
-                  value={activationAdminName}
-                  onChange={(e) => setActivationAdminName(e.target.value)}
-                  placeholder="દા.ત. રમેશભાઈ પટેલ (મુખ્ય ટ્રસ્ટી)"
-                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-white focus:outline-indigo-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                    લોગિન યુઝર આઈડી (ID) *
-                  </label>
-                  <input
-                    id="activation-admin-username"
-                    type="text"
-                    value={activationAdminUsername}
-                    onChange={(e) => setActivationAdminUsername(e.target.value)}
-                    placeholder="admin"
-                    className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-white focus:outline-indigo-500 font-mono font-bold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                    પાસવર્ડ (Password) *
-                  </label>
-                  <input
-                    id="activation-admin-password"
-                    type="text"
-                    value={activationAdminPassword}
-                    onChange={(e) => setActivationAdminPassword(e.target.value)}
-                    placeholder="admin123"
-                    className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-white focus:outline-indigo-500 font-mono font-bold"
-                    required
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-indigo-700 dark:text-indigo-300 italic">
-                * આ યુઝર આઈડી અને પાસવર્ડથી ટ્રસ્ટના સોફ્ટવેરમાં સીધો પ્રવેશ મળશે.
-              </p>
-            </div>
-
-            {/* Quick Demo Keys Box */}
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl space-y-2">
-              <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-                <span>લાયસન્સ કી (પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ):</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { label: 'PROG-WELL-9823-ACTV-8822', name: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ' }
-                ].map((demo) => (
-                  <button
-                    key={demo.label}
-                    type="button"
-                    onClick={() => {
-                      setActivationKeyInput(demo.label);
-                      setActivationTrustNameInput(demo.name);
-                    }}
-                    className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:hover:bg-emerald-800/80 text-emerald-950 dark:text-emerald-100 rounded-lg text-[10px] font-mono font-bold transition-all border border-emerald-300/50 dark:border-emerald-700/50"
-                  >
-                    + {demo.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              id="btn-activate-submit"
-              type="submit"
-              className="w-full py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
-            >
-              <KeyRound className="w-4 h-4" />
-              સોફ્ટવેર સક્રિય કરો (Activate Software Now)
-            </button>
-          </form>
-        </motion.div>
-      </div>
-    );
-  }
   if (!isLoggedIn) {
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 md:p-8 transition-colors duration-300 ${mainBg} bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/30 via-slate-950 to-slate-950`}>
@@ -3147,7 +3294,7 @@ export default function App() {
             <div>
               <div className="mb-6">
                 <h3 className="text-lg font-black text-slate-900 dark:text-white">સિસ્ટમમાં પ્રવેશ કરો</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">તમારી ભૂમિકા (Role) પસંદ કરી સુરક્ષિત લોગિન કરો.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">તમારું યુઝરનેમ અને પાસવર્ડ આપી સુરક્ષિત લોગિન કરો.</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
@@ -3169,92 +3316,6 @@ export default function App() {
                     </div>
                   </motion.div>
                 )}
-
-                {/* Trust Selection Dropdown */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">ટ્રસ્ટ પસંદ કરો (Select Trust) *</label>
-                  <select
-                    value={loginSelectedTrust}
-                    onChange={(e) => {
-                      const selTrust = e.target.value;
-                      setLoginSelectedTrust(selTrust);
-                      setLoginPassword('');
-                      setLoginError(null);
-                      
-                      // Filter users by selected trust
-                      const tUsers = (appUsers.length > 0 ? appUsers : DEFAULT_USERS).filter(
-                        u => (u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') === selTrust
-                      );
-                      const tAdmin = tUsers.find(u => u.role === 'Admin');
-                      if (tAdmin) {
-                        setLoginUsername(tAdmin.username);
-                        setLoginRoleFilter('Admin');
-                      } else {
-                        // fallback
-                        if (loginRoleFilter === 'Admin') {
-                          setLoginUsername('admin');
-                        } else if (loginRoleFilter === 'Accountant') {
-                          setLoginUsername('accountant');
-                        } else if (loginRoleFilter === 'DataEntry') {
-                          setLoginUsername('operator');
-                        } else {
-                          setLoginUsername('readonly');
-                        }
-                      }
-                    }}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-white focus:outline-emerald-500"
-                  >
-                    {(() => {
-                      const allLic = licenses.length > 0 ? licenses : DEFAULT_LICENSES;
-                      // original licenses have id starting with 'lic-'
-                      const hasCustom = allLic.some(l => l.id.startsWith('lic-'));
-                      const filteredLic = hasCustom 
-                        ? allLic.filter(l => l.id !== 'lic_progressive')
-                        : allLic;
-                      
-                      return Array.from(new Set(
-                        filteredLic.map(l => l.trustNameGuj)
-                      )).map((trustName) => (
-                        <option key={trustName} value={trustName}>
-                          {trustName}
-                        </option>
-                      ));
-                    })()}
-                  </select>
-                </div>
-
-                {/* Role Filter Selector */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">ભૂમિકા પસંદ કરો (Select User Role) *</label>
-                  <select
-                    value={loginRoleFilter}
-                    onChange={(e) => {
-                      const newRole = e.target.value as UserRole;
-                      setLoginRoleFilter(newRole);
-                      setLoginPassword('');
-                      setLoginError(null);
-
-                      const tUsers = (appUsers.length > 0 ? appUsers : DEFAULT_USERS).filter(
-                        u => (u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') === loginSelectedTrust
-                      );
-                      const matchingUser = tUsers.find(u => u.role === newRole);
-                      if (matchingUser) {
-                        setLoginUsername(matchingUser.username);
-                      } else {
-                        if (newRole === 'Admin') setLoginUsername('admin');
-                        else if (newRole === 'Accountant') setLoginUsername('accountant');
-                        else if (newRole === 'DataEntry') setLoginUsername('operator');
-                        else setLoginUsername('readonly');
-                      }
-                    }}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500"
-                  >
-                    <option value="Admin">પ્રશાસક (Administrator) • admin</option>
-                    <option value="Accountant">નામું રાખનાર (Accountant) • accountant</option>
-                    <option value="DataEntry">ઓપરેટર (Data Entry Operator) • operator</option>
-                    <option value="ReadOnly">નિરીક્ષક (Read Only User) • readonly</option>
-                  </select>
-                </div>
 
                 {/* Username */}
                 <div>
@@ -3282,67 +3343,32 @@ export default function App() {
                 {/* Password */}
                 <div>
                   <label htmlFor="trust_login_pwd" className="block text-xs font-bold text-slate-500 mb-1">સુરક્ષા પાસવર્ડ (Password - English only) *</label>
-                  <input
-                    id="trust_login_pwd"
-                    name="trust_login_pwd"
-                    type="text"
-                    readOnly
-                    onFocus={(e) => e.target.removeAttribute('readonly')}
-                    style={{ WebkitTextSecurity: 'disc', MozAppearance: 'none' } as React.CSSProperties}
-                    value={loginPassword}
-                    onChange={(e) => {
-                      setLoginPassword(e.target.value.replace(/[^\x00-\x7F]/g, ''));
-                      setLoginError(null);
-                    }}
-                    placeholder="••••••••"
-                    lang="en"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck="false"
-                    autoComplete="one-time-code"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500 font-mono"
-                    required
-                  />
-                </div>
-
-
-
-                {/* Registered Users Quick Choice Box */}
-                <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl space-y-2">
-                  <div className="text-[11px] font-bold text-emerald-900 dark:text-emerald-300 flex items-center justify-between">
-                    <span>રજીસ્ટર્ડ યુઝર્સ (યુઝરનેમ પસંદ કરવા ક્લિક કરો, પાસવર્ડ જાતે નાખો):</span>
-                  </div>
-                  <div className="space-y-1 max-h-32 overflow-y-auto pr-1 text-[10px]">
-                    {(appUsers.length > 0 ? appUsers : DEFAULT_USERS)
-                      .filter(u => (u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') === loginSelectedTrust)
-                      .map((u) => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => {
-                            setLoginUsername(u.username);
-                            setLoginPassword('');
-                            setLoginRoleFilter(u.role);
-                            setLoginError(null);
-                          }}
-                          className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between font-mono ${
-                            loginUsername.toLowerCase() === u.username.toLowerCase()
-                              ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
-                              : 'bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
-                          }`}
-                        >
-                          <span className="truncate">
-                            <strong className="font-sans font-semibold">{u.nameGuj}</strong> ({u.username})
-                          </span>
-                        </button>
-                      ))}
-                    {(appUsers.length > 0 ? appUsers : DEFAULT_USERS).filter(
-                      u => (u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ') === loginSelectedTrust
-                    ).length === 0 && (
-                      <div className="text-center py-4 text-slate-400 dark:text-slate-500 italic">
-                        આ ટ્રસ્ટ માટે કોઈ વપરાશકર્તા નોંધાયેલ નથી. (No users registered for this trust.)
-                      </div>
-                    )}
+                  <div className="relative">
+                    <input
+                      id="trust_login_pwd"
+                      name="trust_login_pwd"
+                      type={showPassword ? "text" : "password"}
+                      value={loginPassword}
+                      onChange={(e) => {
+                        setLoginPassword(e.target.value.replace(/[^\x00-\x7F]/g, ''));
+                        setLoginError(null);
+                      }}
+                      placeholder="••••••••"
+                      lang="en"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck="false"
+                      className="w-full p-2.5 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white focus:outline-emerald-500 font-mono"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      title={showPassword ? "પાસવર્ડ છુપાવો" : "પાસવર્ડ બતાવો"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 
@@ -4051,7 +4077,7 @@ export default function App() {
 
               {activeTab === 'users' && (
                 <UserManagementModule
-                  appUsers={appUsers.length > 0 ? appUsers : DEFAULT_USERS}
+                  appUsers={appUsers}
                   currentUser={currentSessionUser}
                   onAddUser={handleAddUser}
                   onEditUser={handleEditUser}

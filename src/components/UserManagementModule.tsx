@@ -45,11 +45,25 @@ export default function UserManagementModule({
   darkMode,
   trustSettings
 }: UserManagementModuleProps) {
-  const currentTrust = currentUser?.trustNameGuj || trustSettings?.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
-  const filteredUsers = appUsers.filter(u => {
-    const uTrust = u.trustNameGuj || 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
-    return uTrust === currentTrust;
+  const currentTrust = (currentUser?.trustNameGuj || trustSettings?.trustNameGuj || '').trim();
+  const rawFiltered = appUsers.filter(u => {
+    const uTrust = (u.trustNameGuj || '').trim();
+    return currentTrust ? uTrust === currentTrust : true;
   });
+
+  // Deduplicate users per trust so there is strictly ONLY ONE user per username (e.g., only 1 admin)
+  const filteredUsers = rawFiltered.reduce<UserType[]>((acc, u) => {
+    const existingIdx = acc.findIndex(ex => ex.username.toLowerCase() === u.username.toLowerCase());
+    if (existingIdx === -1) {
+      acc.push(u);
+    } else {
+      // If the incoming user is vendor registered or custom, prioritize it over default
+      if (u.isVendorRegistered || (!u.id.startsWith('usr1') && acc[existingIdx].id.startsWith('usr1'))) {
+        acc[existingIdx] = u;
+      }
+    }
+    return acc;
+  }, []);
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
