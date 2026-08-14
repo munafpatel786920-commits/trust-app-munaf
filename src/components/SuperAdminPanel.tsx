@@ -4,11 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { KeyRound, ShieldAlert, Award, Plus, Layers, Database, RefreshCw, Server, CheckCircle2, AlertTriangle, LogOut, ShieldCheck, Edit2, Trash2, Power, X } from 'lucide-react';
-import { TrustLicense } from '../types';
+import { KeyRound, ShieldAlert, Award, Plus, Layers, Database, RefreshCw, Server, CheckCircle2, AlertTriangle, LogOut, ShieldCheck, Edit2, Trash2, Power, X, Share2, Copy, Check, ExternalLink, Send } from 'lucide-react';
+import { TrustLicense, User } from '../types';
 
 interface SuperAdminPanelProps {
   licenses: TrustLicense[];
+  appUsers?: User[];
   onAddLicense: (
     lic: Omit<TrustLicense, 'id' | 'status'>,
     newUser?: { username: string; passwordHash: string; nameGuj: string }
@@ -23,6 +24,7 @@ interface SuperAdminPanelProps {
 
 export default function SuperAdminPanel({
   licenses,
+  appUsers = [],
   onAddLicense,
   onRenewLicense,
   onEditLicense,
@@ -44,7 +46,72 @@ export default function SuperAdminPanel({
 
   // Generator helper
   const [generatedKey, setGeneratedKey] = useState('');
-  const [createdCredentials, setCreatedCredentials] = useState<{ username: string; pass: string } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ username: string; pass: string; trustName: string } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const getTrustAdminUser = (trustName: string) => {
+    const tUsers = appUsers.filter(u => (u.trustNameGuj || '').trim() === trustName.trim());
+    return tUsers.find(u => u.role === 'Admin') || tUsers[0];
+  };
+
+  const generateSetupLink = (lic: TrustLicense, userCred?: { username: string; pass: string }) => {
+    const origin = window.location.origin + window.location.pathname;
+    let username = 'admin';
+    let password = 'admin123';
+
+    if (userCred) {
+      username = userCred.username;
+      password = userCred.pass;
+    } else {
+      const u = getTrustAdminUser(lic.trustNameGuj);
+      if (u) {
+        username = u.username;
+        password = u.passwordHash;
+      }
+    }
+
+    const payload = {
+      t: lic.trustNameGuj,
+      u: username,
+      p: password,
+      e: lic.registeredEmail,
+      m: lic.registeredPhone,
+      exp: lic.expiryDate
+    };
+
+    try {
+      const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+      return `${origin}?setup=${encoded}`;
+    } catch (e) {
+      return `${origin}?trust=${encodeURIComponent(lic.trustNameGuj)}&user=${encodeURIComponent(username)}&pass=${encodeURIComponent(password)}`;
+    }
+  };
+
+  const getWhatsAppShareUrl = (lic: TrustLicense, userCred?: { username: string; pass: string }) => {
+    const link = generateSetupLink(lic, userCred);
+    let username = 'admin';
+    let password = 'admin123';
+
+    if (userCred) {
+      username = userCred.username;
+      password = userCred.pass;
+    } else {
+      const u = getTrustAdminUser(lic.trustNameGuj);
+      if (u) {
+        username = u.username;
+        password = u.passwordHash;
+      }
+    }
+
+    const text = `🙏 નમસ્તે,\nતમારા ટ્રસ્ટ માટે એકાઉન્ટિંગ સોફ્ટવેર લોગિન વિગતો:\n\n🏛️ ટ્રસ્ટ: *${lic.trustNameGuj}*\n👤 યુઝરનેમ (ID): *${username}*\n🔒 પાસવર્ડ: *${password}*\n📅 માન્યતા મુદત: ${lic.expiryDate}\n\n👉 ૧-ક્લિકમાં સોફ્ટવેર શરૂ કરવા આ લિંક ખોલો:\n${link}`;
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  };
+
+  const handleCopyText = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 3000);
+  };
 
   const generateRandomKey = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -93,11 +160,10 @@ export default function SuperAdminPanel({
     );
 
     setGeneratedKey(newKey);
-    setCreatedCredentials({ username: cleanUser, pass: cleanPass });
+    setCreatedCredentials({ username: cleanUser, pass: cleanPass, trustName: trustNameGuj });
     setTrustNameGuj('');
     setRegisteredEmail('');
     setRegisteredPhone('');
-    alert(`લાયસન્સ અને લોગિન આઈડી (${cleanUser}) સફળતાપૂર્વક રજીસ્ટર થઈ ગયા છે!`);
   };
 
   const cardBg = darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800';
@@ -111,14 +177,14 @@ export default function SuperAdminPanel({
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 text-[10px] bg-indigo-600 text-white rounded-full uppercase font-bold tracking-wider">
-              સિક્યોર સુપર એડમિન લાયસન્સિંગ કંટ્રોલ (Vendor Control)
+              સુપર એડમિન મેનેજર (Super Admin Panel)
             </span>
             <span className="px-2.5 py-1 text-[10px] bg-emerald-600 text-white rounded-full font-bold flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" /> સક્રિય સેશન (Super Admin Active)
+              <ShieldCheck className="w-3 h-3" /> સક્રિય સેશન (Active)
             </span>
           </div>
-          <h2 className="text-xl font-black text-indigo-700 mt-2">વેન્ડર લાયસન્સ અને સબ્સ્ક્રિપ્શન મેનેજર (Super Admin Panel)</h2>
-          <p className="text-xs text-slate-500 mt-1">નવા ગ્રાહક ટ્રસ્ટ બનાવો, સોફ્ટવેર લાયસન્સ કી જનરેટ કરો, મેન્ટેનન્સ પ્લાન અને રીમોટ અપડેટ્સ મેનેજ કરો.</p>
+          <h2 className="text-xl font-black text-indigo-700 mt-2">ટ્રસ્ટ ક્લાયન્ટ સંચાલન (Trust Accounts Manager)</h2>
+          <p className="text-xs text-slate-500 mt-1">નવા ગ્રાહક ટ્રસ્ટ બનાવો, યુઝર આઈડી અને પાસવર્ડ સેટ કરો અને ક્લાઉડ એકાઉન્ટ્સ મેનેજ કરો.</p>
         </div>
         {onLogoutSuperAdmin && (
           <button
@@ -132,10 +198,10 @@ export default function SuperAdminPanel({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Side License Key Generator form */}
+        {/* Left Side Client Trust Creation form */}
         <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
           <h3 className="font-bold text-sm text-indigo-600 flex items-center gap-1.5 border-b pb-2">
-            <KeyRound className="w-4 h-4" /> નવી લાયસન્સ કી જનરેટર
+            <Plus className="w-4 h-4" /> નવું ક્લાયન્ટ ટ્રસ્ટ રજીસ્ટ્રેશન
           </h3>
 
           <form onSubmit={handleCreateLicense} className="space-y-4 text-xs">
@@ -202,7 +268,7 @@ export default function SuperAdminPanel({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold mb-1">મુદત સમયગાળો</label>
+                <label className="block font-bold mb-1">સબ્સ્ક્રિપ્શન પ્લાન</label>
                 <select
                   value={expiryYears}
                   onChange={(e) => setExpiryYears(e.target.value)}
@@ -217,7 +283,7 @@ export default function SuperAdminPanel({
               <div>
                 <label className="block font-bold mb-1">પ્રોડક્ટ વર્ઝન</label>
                 <select className={`w-full p-2.5 rounded-xl text-xs ${inputBg}`}>
-                  <option value="v4.2.0">v4.2.0 (નવીનતમ સ્થિર)</option>
+                  <option value="v4.2.0">v4.2.0 (સ્થિર સંસ્કરણ)</option>
                   <option value="v4.1.0">v4.1.0 (જૂનું સંસ્કરણ)</option>
                 </select>
               </div>
@@ -225,33 +291,94 @@ export default function SuperAdminPanel({
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs mt-2"
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs mt-2 cursor-pointer transition-colors"
             >
-              ટ્રસ્ટ રજીસ્ટર કરો અને લાયસન્સ જનરેટ કરો (Register Trust & Key)
+              ટ્રસ્ટ રજીસ્ટર કરો (Register Trust Account)
             </button>
           </form>
 
-          {generatedKey && (
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl space-y-2 text-xs">
-              <span className="font-bold text-emerald-800 dark:text-emerald-300 block">જનરેટ રજીસ્ટ્રેશન વિગતો:</span>
-              <code className="p-2 bg-white dark:bg-slate-900 block text-center font-mono font-bold text-sm text-slate-800 dark:text-slate-100 rounded select-all border border-dashed border-emerald-300 dark:border-emerald-700">
-                {generatedKey}
-              </code>
-              {createdCredentials && (
-                <div className="p-2 bg-white/80 dark:bg-slate-900/80 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50 text-[11px] font-mono space-y-1 text-slate-800 dark:text-slate-200">
-                  <div className="flex justify-between">
-                    <span className="font-sans font-bold text-slate-600 dark:text-slate-400">એડમિન યુઝરનેમ (ID):</span>
-                    <strong className="text-emerald-700 dark:text-emerald-400">{createdCredentials.username}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-sans font-bold text-slate-600 dark:text-slate-400">પાસવર્ડ:</span>
-                    <strong className="text-emerald-700 dark:text-emerald-400">{createdCredentials.pass}</strong>
-                  </div>
+          {createdCredentials && (
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-2xl space-y-3 text-xs shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> એકાઉન્ટ સફળતાપૂર્વક રજીસ્ટર થયું!
+                </span>
+                <span className="text-[10px] bg-emerald-200/70 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                  સક્રિય (Active)
+                </span>
+              </div>
+
+              <div className="p-2.5 bg-white/90 dark:bg-slate-900/90 rounded-xl border border-emerald-200 dark:border-emerald-800 text-[11px] font-mono space-y-1.5 text-slate-800 dark:text-slate-200">
+                <div className="flex justify-between">
+                  <span className="font-sans font-bold text-slate-600 dark:text-slate-400">ટ્રસ્ટ:</span>
+                  <strong className="text-slate-800 dark:text-white font-sans">{createdCredentials.trustName}</strong>
                 </div>
-              )}
-              <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">
-                ✓ આ યુઝરનેમ અને પાસવર્ડ વડે આ ટ્રસ્ટથી સીધું લોગિન કરી શકાશે.
-              </p>
+                <div className="flex justify-between">
+                  <span className="font-sans font-bold text-slate-600 dark:text-slate-400">એડમિન યુઝરનેમ:</span>
+                  <strong className="text-emerald-700 dark:text-emerald-400">{createdCredentials.username}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-sans font-bold text-slate-600 dark:text-slate-400">પાસવર્ડ:</span>
+                  <strong className="text-emerald-700 dark:text-emerald-400">{createdCredentials.pass}</strong>
+                </div>
+              </div>
+
+              {/* One-click share buttons */}
+              <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800 space-y-2">
+                <p className="text-[10px] text-emerald-800 dark:text-emerald-300 font-bold">
+                  📲 ગ્રાહકના મોબાઈલમાં ૧-ક્લિકથી શરૂ કરવા માટે મોકલો:
+                </p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <a
+                    href={getWhatsAppShareUrl({
+                      id: 'temp',
+                      trustNameGuj: createdCredentials.trustName,
+                      licenseKey: 'TRST-' + Date.now(),
+                      registeredEmail: 'admin@trust.org',
+                      registeredPhone: '',
+                      activationDate: new Date().toISOString().split('T')[0],
+                      expiryDate: '2099-12-31',
+                      status: 'સક્રિય (Active)',
+                      version: 'v4.2.0'
+                    }, createdCredentials)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all text-center"
+                  >
+                    <Send className="w-3.5 h-3.5" /> WhatsApp પર મોકલો
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(
+                      generateSetupLink({
+                        id: 'temp',
+                        trustNameGuj: createdCredentials.trustName,
+                        licenseKey: 'TRST-' + Date.now(),
+                        registeredEmail: 'admin@trust.org',
+                        registeredPhone: '',
+                        activationDate: new Date().toISOString().split('T')[0],
+                        expiryDate: '2099-12-31',
+                        status: 'સક્રિય (Active)',
+                        version: 'v4.2.0'
+                      }, createdCredentials),
+                      'gen-link'
+                    )}
+                    className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                  >
+                    {copiedId === 'gen-link' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" /> લિંક કોપી થઈ ગઈ!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" /> ડાયરેક્ટ લિંક કોપી કરો
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -267,13 +394,22 @@ export default function SuperAdminPanel({
             <div className="space-y-3">
               {licenses.map(lic => {
                 const isActive = lic.status.startsWith('સક્રિય') || (lic.status.toLowerCase().includes('active') && !lic.status.toLowerCase().includes('in'));
+                const adminUser = getTrustAdminUser(lic.trustNameGuj);
+                const shareLink = generateSetupLink(lic);
+                const waUrl = getWhatsAppShareUrl(lic);
+
                 return (
                 <div key={lic.id} className="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-xs flex flex-col justify-between gap-3">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div>
                       <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{lic.trustNameGuj}</h4>
-                      <span className="block font-mono text-indigo-600 mt-1">{lic.licenseKey}</span>
-                      <span className={`block text-[10px] ${textMuted} mt-1`}>નોંધણી: {lic.registeredEmail} • વર્ઝન: {lic.version}</span>
+                      <span className={`block text-[10px] ${textMuted} mt-1`}>નોંધણી: {lic.registeredEmail} {lic.registeredPhone ? `• મો: ${lic.registeredPhone}` : ''} • વર્ઝન: {lic.version}</span>
+                      {adminUser && (
+                        <div className="mt-1.5 flex items-center gap-3 text-[11px] font-mono text-slate-600 dark:text-slate-400">
+                          <span>User: <strong className="text-emerald-700 dark:text-emerald-400">{adminUser.username}</strong></span>
+                          <span>Pass: <strong className="text-emerald-700 dark:text-emerald-400">{adminUser.passwordHash}</strong></span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-row md:flex-col items-start gap-2 justify-between shrink-0">
@@ -294,8 +430,56 @@ export default function SuperAdminPanel({
                     </div>
                   </div>
 
+                  {/* Share on WhatsApp & Copy Link Toolbar */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2 rounded-xl">
+                    <span className="text-[10px] font-bold text-slate-500 mr-1 flex items-center gap-1">
+                      <Share2 className="w-3 h-3 text-indigo-600" /> ગ્રાહકને મોકલો:
+                    </span>
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Send className="w-3 h-3" /> WhatsApp Share
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(shareLink, `link-${lic.id}`)}
+                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedId === `link-${lic.id}` ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" /> લિંક કોપી થઈ!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" /> ડાયરેક્ટ લિંક કોપી
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(
+                        `ટ્રસ્ટ: ${lic.trustNameGuj}\nયુઝરનેમ: ${adminUser?.username || 'admin'}\nપાસવર્ડ: ${adminUser?.passwordHash || 'admin123'}\nલિંક: ${shareLink}`,
+                        `msg-${lic.id}`
+                      )}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedId === `msg-${lic.id}` ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" /> વિગત કોપી થઈ!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" /> પૂરી વિગત કોપી
+                        </>
+                      )}
+                    </button>
+                  </div>
+
                   {/* Edit, Deactivate, Delete Action Toolbar */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => setEditingLicense(lic)}

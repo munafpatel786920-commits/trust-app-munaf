@@ -40,7 +40,10 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
-  Download
+  Download,
+  Cloud,
+  Plus,
+  Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, checkServerVersion, reloadToUpdate } from './utils/pwaUpdate';
@@ -104,8 +107,17 @@ import AgendaTharavModule from './components/AgendaTharavModule';
 import UserManagementModule from './components/UserManagementModule';
 import CalculatorWidget from './components/CalculatorWidget';
 import { translitWord, localTransliterate } from './utils/transliterator';
-import { db } from './lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { 
+  db, 
+  isElectronOfflineApp, 
+  isOnlineCloudMode, 
+  saveTrustDatasetToFirebase, 
+  saveFullTrustToFirebase, 
+  loadFullTrustFromFirebase, 
+  saveSystemMasterToFirebase, 
+  loadSystemMasterFromFirebase, 
+  subscribeToTrustFirebase 
+} from './lib/firebase';
 
 export default function App() {
   // Hybrid App Mode state ('offline', 'online', 'hybrid')
@@ -117,6 +129,8 @@ export default function App() {
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [hasAppUpdate, setHasAppUpdate] = useState<boolean>(false);
   const [serverVersionNum, setServerVersionNum] = useState<string>('');
+  const [isFirebaseSyncing, setIsFirebaseSyncing] = useState<boolean>(false);
+  const [lastFirebaseSyncTime, setLastFirebaseSyncTime] = useState<string>('');
 
   useEffect(() => {
     // 1. Register Service Worker for PWA offline capabilities
@@ -136,7 +150,7 @@ export default function App() {
 
     const handleOnline = () => {
       setIsOnline(true);
-      if (appMode !== 'offline') {
+      if (appMode !== 'offline' && !isElectronOfflineApp()) {
         syncToFirebaseAndCloud();
       }
       // Check for GitHub / Server updates as soon as internet connects
@@ -168,15 +182,18 @@ export default function App() {
       'સેટિંગ્સ (App Mode)',
       `મોડ સેટ કર્યો: ${mode === 'offline' ? 'ઓફલાઇન (Offline)' : mode === 'online' ? 'ઓનલાઇન (Online)' : 'હાઇબ્રિડ (Hybrid)'}`
     );
-    if (mode !== 'offline' && navigator.onLine) {
+    if (mode !== 'offline' && navigator.onLine && !isElectronOfflineApp()) {
       syncToFirebaseAndCloud();
     }
   };
 
-  const syncToFirebaseAndCloud = async () => {
-    if (!db || !navigator.onLine || appMode === 'offline') return;
+  const syncToFirebaseAndCloud = async (overrideTrustName?: string) => {
+    if (isElectronOfflineApp() || !navigator.onLine || appMode === 'offline') return;
+    const targetTrust = overrideTrustName || currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
     try {
+      setIsFirebaseSyncing(true);
       const payload = {
+        trust_name: targetTrust,
         donors,
         receipts,
         vouchers,
@@ -188,43 +205,85 @@ export default function App() {
         auditLogs,
         licenses,
         trustSettings,
-        appUsers,
+        reconciliationList,
+        inventoryItems,
+        purchaseBills,
+        salesBills,
+        sharePurchases,
+        loanApplications,
         lastSyncedAt: new Date().toISOString()
       };
-      await setDoc(doc(db, 'trust_data', 'main_trust_account'), payload);
-      console.log('Firebase Cloud Sync Successful');
+      await Promise.all([
+        saveFullTrustToFirebase(targetTrust, payload),
+        saveSystemMasterToFirebase(licenses, appUsers)
+      ]);
+      const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastFirebaseSyncTime(nowTime);
+      console.log(`[Firebase Cloud Sync] ${targetTrust} data synced to Google Firebase at ${nowTime}`);
     } catch (err) {
       console.error('Firebase Cloud Sync error:', err);
+    } finally {
+      setTimeout(() => setIsFirebaseSyncing(false), 500);
     }
   };
 
-  const fetchFromFirebaseCloud = async () => {
-    if (!db || !navigator.onLine || appMode === 'offline') {
-      alert('ઓફલાઇન મોડમાં છો અથવા ઇન્ટરનેટ ઉપલબ્ધ નથી!');
+  const fetchFromFirebaseCloud = async (silent = false) => {
+    if (isElectronOfflineApp()) {
+      if (!silent) alert('તમે પીસી ઑફલાઇન ડેસ્કટોપ મોડમાં છો. તમારો ડેટા તમારા પીસીમાં સુરક્ષિત છે.');
       return;
     }
+    if (!navigator.onLine || appMode === 'offline') {
+      if (!silent) alert('ઓફલાઇન મોડમાં છો અથવા ઇન્ટરનેટ ઉપલબ્ધ નથી!');
+      return;
+    }
+    const targetTrust = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
     try {
-      const snap = await getDoc(doc(db, 'trust_data', 'main_trust_account'));
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.donors) { setDonors(data.donors); localStorage.setItem('trust_donors', JSON.stringify(data.donors)); }
-        if (data.receipts) { setReceipts(data.receipts); localStorage.setItem('trust_receipts', JSON.stringify(data.receipts)); }
-        if (data.vouchers) { setVouchers(data.vouchers); localStorage.setItem('trust_vouchers', JSON.stringify(data.vouchers)); }
-        if (data.banks) { setBanks(data.banks); localStorage.setItem('trust_banks', JSON.stringify(data.banks)); }
-        if (data.members) { setMembers(data.members); localStorage.setItem('trust_members', JSON.stringify(data.members)); }
-        if (data.assets) { setAssets(data.assets); localStorage.setItem('trust_assets', JSON.stringify(data.assets)); }
-        if (data.documents) { setDocuments(data.documents); localStorage.setItem('trust_documents', JSON.stringify(data.documents)); }
-        if (data.tharavs) { setTharavs(data.tharavs); localStorage.setItem('trust_tharavs', JSON.stringify(data.tharavs)); }
-        if (data.trustSettings) { setTrustSettings(data.trustSettings); localStorage.setItem('trust_settings', JSON.stringify(data.trustSettings)); }
-        if (data.appUsers) { setAppUsers(data.appUsers); localStorage.setItem('trust_users', JSON.stringify(data.appUsers)); }
-        alert('ફાયરબેઝ ક્લાઉડ સાથે ડેટા સફળતાપૂર્વક સિંક થઈ ગયો છે!');
+      setIsFirebaseSyncing(true);
+      const [cloudTrustData, systemMaster] = await Promise.all([
+        loadFullTrustFromFirebase(targetTrust),
+        loadSystemMasterFromFirebase()
+      ]);
+
+      if (systemMaster) {
+        if (systemMaster.licenses && systemMaster.licenses.length > 0) {
+          setLicenses(systemMaster.licenses);
+          localStorage.setItem('trust_licenses', JSON.stringify(systemMaster.licenses));
+        }
+        if (systemMaster.users && systemMaster.users.length > 0) {
+          setAppUsers(systemMaster.users);
+          localStorage.setItem('trust_users', JSON.stringify(systemMaster.users));
+        }
+      }
+
+      if (cloudTrustData) {
+        if (cloudTrustData.donors) { setDonors(cloudTrustData.donors); localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(cloudTrustData.donors)); }
+        if (cloudTrustData.receipts) { setReceipts(cloudTrustData.receipts); localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(cloudTrustData.receipts)); }
+        if (cloudTrustData.vouchers) { setVouchers(cloudTrustData.vouchers); localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(cloudTrustData.vouchers)); }
+        if (cloudTrustData.banks) { setBanks(cloudTrustData.banks); localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(cloudTrustData.banks)); }
+        if (cloudTrustData.members) { setMembers(cloudTrustData.members); localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(cloudTrustData.members)); }
+        if (cloudTrustData.assets) { setAssets(cloudTrustData.assets); localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(cloudTrustData.assets)); }
+        if (cloudTrustData.documents) { setDocuments(cloudTrustData.documents); localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(cloudTrustData.documents)); }
+        if (cloudTrustData.tharavs) { setTharavs(cloudTrustData.tharavs); localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(cloudTrustData.tharavs)); }
+        if (cloudTrustData.trustSettings) { setTrustSettings(cloudTrustData.trustSettings); localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(cloudTrustData.trustSettings)); }
+        if (cloudTrustData.reconciliationList) { setReconciliationList(cloudTrustData.reconciliationList); localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(cloudTrustData.reconciliationList)); }
+        if (cloudTrustData.inventoryItems) { setInventoryItems(cloudTrustData.inventoryItems); localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(cloudTrustData.inventoryItems)); }
+        if (cloudTrustData.purchaseBills) { setPurchaseBills(cloudTrustData.purchaseBills); localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(cloudTrustData.purchaseBills)); }
+        if (cloudTrustData.salesBills) { setSalesBills(cloudTrustData.salesBills); localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(cloudTrustData.salesBills)); }
+        if (cloudTrustData.sharePurchases) { setSharePurchases(cloudTrustData.sharePurchases); localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(cloudTrustData.sharePurchases)); }
+        if (cloudTrustData.loanApplications) { setLoanApplications(cloudTrustData.loanApplications); localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(cloudTrustData.loanApplications)); }
+        
+        const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastFirebaseSyncTime(nowTime);
+        if (!silent) alert('ગૂગલ ફાયરબેઝ ક્લાઉડમાંથી ડેટા સફળતાપૂર્વક ડાઉનલોડ અને સિંક થઈ ગયો છે!');
       } else {
-        await syncToFirebaseAndCloud();
-        alert('ક્લાઉડ ખાલી હતું, સ્થાનિક ડેટા ફાયરબેઝ પર અપલોડ અને સિંક કરી દેવાયો છે!');
+        await syncToFirebaseAndCloud(targetTrust);
+        if (!silent) alert('ક્લાઉડમાં આ ટ્રસ્ટનો નવો ડેટાબેઝ બન્યો છે અને સ્થાનિક વિગતો ફાયરબેઝ પર અપલોડ થઈ ગઈ છે!');
       }
     } catch (err) {
       console.error('Failed to fetch from Firebase cloud:', err);
-      alert('ક્લાઉડ સિંક નિષ્ફળ.');
+      if (!silent) alert('ક્લાઉડ સિંક નિષ્ફળ.');
+    } finally {
+      setIsFirebaseSyncing(false);
     }
   };
 
@@ -255,6 +314,14 @@ export default function App() {
   const [loginSelectedTrust, setLoginSelectedTrust] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [activationSuccessMessage, setActivationSuccessMessage] = useState<string | null>(null);
+  const [showDirectActivationModal, setShowDirectActivationModal] = useState(false);
+  const [directTrustNameInput, setDirectTrustNameInput] = useState('');
+  const [directEmailInput, setDirectEmailInput] = useState('');
+  const [directPhoneInput, setDirectPhoneInput] = useState('');
+  const [directAdminUser, setDirectAdminUser] = useState('admin');
+  const [directAdminPass, setDirectAdminPass] = useState('admin123');
+  const [directActivationError, setDirectActivationError] = useState<string | null>(null);
 
   // Global event listener for direct phonetic keyboard transliteration (like mobile GBoard)
   useEffect(() => {
@@ -495,6 +562,112 @@ export default function App() {
       setActivationKey('');
       setIsLoggedIn(false);
     }
+  };
+
+  const handleDirectTrustActivation = (e: React.FormEvent) => {
+    e.preventDefault();
+    setDirectActivationError(null);
+    const trustName = directTrustNameInput.trim();
+    const cleanUser = directAdminUser.trim() || 'admin';
+    const cleanPass = directAdminPass.trim() || 'admin123';
+    const email = directEmailInput.trim() || 'admin@trust.org';
+    const phone = directPhoneInput.trim() || '';
+
+    if (!trustName) {
+      setDirectActivationError('મહેરબાની કરીને ટ્રસ્ટનું નામ દાખલ કરો.');
+      return;
+    }
+
+    // 1. Add trust record to licenses list in state & localStorage
+    let curLic = [...licenses];
+    const licIdx = curLic.findIndex(
+      l => l.trustNameGuj.trim() === trustName
+    );
+    if (licIdx >= 0) {
+      curLic[licIdx] = {
+        ...curLic[licIdx],
+        status: 'સક્રિય (Active)',
+        trustNameGuj: trustName,
+        registeredEmail: email,
+        registeredPhone: phone
+      };
+    } else {
+      const newL: TrustLicense = {
+        id: 'lic-' + Date.now(),
+        licenseKey: 'TRST-' + Date.now(),
+        trustNameGuj: trustName,
+        registeredEmail: email,
+        registeredPhone: phone,
+        activationDate: new Date().toISOString().split('T')[0],
+        expiryDate: '2099-12-31',
+        status: 'સક્રિય (Active)',
+        version: 'v4.2.0'
+      };
+      curLic = [newL, ...curLic];
+    }
+    setLicenses(curLic);
+    localStorage.setItem('trust_licenses', JSON.stringify(curLic));
+
+    // 2. Add or update admin user in state & localStorage
+    let curUsers = [...appUsers];
+    const uIdx = curUsers.findIndex(
+      u => (u.trustNameGuj || '').trim() === trustName && u.username.toLowerCase() === cleanUser.toLowerCase()
+    );
+    const newAdmin: UserType = {
+      id: `usr-${cleanUser}-${Date.now()}`,
+      username: cleanUser,
+      passwordHash: cleanPass,
+      nameGuj: `${trustName} (પ્રશાસક)`,
+      role: 'Admin',
+      roleGuj: 'પ્રશાસક (Administrator)',
+      isActive: true,
+      trustNameGuj: trustName,
+      isVendorRegistered: true
+    };
+    if (uIdx >= 0) {
+      curUsers[uIdx] = newAdmin;
+    } else {
+      curUsers = [newAdmin, ...curUsers];
+    }
+
+    // Ensure helper roles exist for this trust as well
+    const rolesNeeded: { role: UserRole; roleGuj: string; defaultUser: string; defaultPass: string }[] = [
+      { role: 'Accountant', roleGuj: 'નામું રાખનાર (Accountant)', defaultUser: 'accountant', defaultPass: 'acc123' },
+      { role: 'DataEntry', roleGuj: 'ડેટા એન્ટ્રી ઓપરેટર (Data Entry)', defaultUser: 'operator', defaultPass: 'op123' },
+      { role: 'ReadOnly', roleGuj: 'માત્ર વાંચવા માટે (Read Only)', defaultUser: 'readonly', defaultPass: 'read123' }
+    ];
+    rolesNeeded.forEach(rn => {
+      if (!curUsers.some(u => (u.trustNameGuj || '').trim() === trustName && u.role === rn.role)) {
+        curUsers.push({
+          id: `usr-${rn.defaultUser}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          username: rn.defaultUser,
+          passwordHash: rn.defaultPass,
+          nameGuj: `${trustName} (${rn.roleGuj.split(' ')[0]})`,
+          role: rn.role,
+          roleGuj: rn.roleGuj,
+          isActive: true,
+          trustNameGuj: trustName,
+          isVendorRegistered: true
+        });
+      }
+    });
+
+    setAppUsers(curUsers);
+    localStorage.setItem('trust_users', JSON.stringify(curUsers));
+
+    // 3. Mark app as ready and activated
+    localStorage.setItem('trust_activated', 'true');
+    localStorage.setItem('trust_activated_name', trustName);
+    setIsActivated(true);
+
+    // 4. Directly log in to this trust
+    setCurrentSessionUser(newAdmin);
+    setIsLoggedIn(true);
+    setActiveTab('control_panel');
+    setShowDirectActivationModal(false);
+    setDirectTrustNameInput('');
+    setDirectEmailInput('');
+    setDirectPhoneInput('');
   };
 
   // Application database state representing SQLite tables
@@ -1259,6 +1432,131 @@ export default function App() {
       setActivationKey('PROG-WELL-9823-ACTV-8822');
     }
 
+    // 3. Process URL Query Parameters for instant customer setup & login on any mobile or PC
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      let incomingSetup: { key: string; trust: string; user: string; pass: string; email?: string; phone?: string; exp?: string } | null = null;
+
+      const rawSetup = searchParams.get('setup');
+      if (rawSetup) {
+        try {
+          const decoded = JSON.parse(decodeURIComponent(atob(rawSetup)));
+          if (decoded.t && decoded.k) {
+            incomingSetup = {
+              key: decoded.k,
+              trust: decoded.t,
+              user: decoded.u || 'admin',
+              pass: decoded.p || 'admin123',
+              email: decoded.e || 'admin@trust.org',
+              phone: decoded.m || '',
+              exp: decoded.exp || '2099-12-31'
+            };
+          }
+        } catch (e) {
+          console.error("Failed to decode ?setup URL param", e);
+        }
+      } else if (searchParams.get('trust')) {
+        incomingSetup = {
+          key: searchParams.get('key') || 'TRST-' + Date.now(),
+          trust: searchParams.get('trust') || '',
+          user: searchParams.get('user') || 'admin',
+          pass: searchParams.get('pass') || 'admin123',
+          email: searchParams.get('email') || 'admin@trust.org',
+          phone: searchParams.get('phone') || '',
+          exp: searchParams.get('exp') || '2099-12-31'
+        };
+      }
+
+      if (incomingSetup && incomingSetup.trust) {
+        const tName = incomingSetup.trust.trim();
+        const tKey = incomingSetup.key ? incomingSetup.key.trim() : 'TRST-' + Date.now();
+        const tUser = incomingSetup.user.trim() || 'admin';
+        const tPass = incomingSetup.pass.trim() || 'admin123';
+
+        // Add or activate license in loadedLic
+        const licIdx = loadedLic.findIndex(l => l.trustNameGuj === tName || l.licenseKey.trim().toUpperCase() === tKey.toUpperCase());
+        if (licIdx >= 0) {
+          loadedLic[licIdx] = { ...loadedLic[licIdx], status: 'સક્રિય (Active)', trustNameGuj: tName, licenseKey: tKey };
+        } else {
+          const newLic: TrustLicense = {
+            id: 'lic-' + Date.now(),
+            licenseKey: tKey,
+            trustNameGuj: tName,
+            registeredEmail: incomingSetup.email || 'admin@trust.org',
+            registeredPhone: incomingSetup.phone || '9876543210',
+            activationDate: new Date().toISOString().split('T')[0],
+            expiryDate: incomingSetup.exp || '2099-12-31',
+            status: 'સક્રિય (Active)',
+            version: 'v4.2.0'
+          };
+          loadedLic.unshift(newLic);
+        }
+        localStorage.setItem('trust_licenses', JSON.stringify(loadedLic));
+        setLicenses(loadedLic);
+
+        // Add or update admin user in cleanedUsersList
+        const uIdx = cleanedUsersList.findIndex(u => (u.trustNameGuj || '').trim() === tName && u.username.toLowerCase() === tUser.toLowerCase());
+        const adminUserObj: UserType = {
+          id: `usr-${tUser}-${Date.now()}`,
+          username: tUser,
+          passwordHash: tPass,
+          nameGuj: `${tName} (પ્રશાસક)`,
+          role: 'Admin',
+          roleGuj: 'પ્રશાસક (Administrator)',
+          isActive: true,
+          trustNameGuj: tName,
+          isVendorRegistered: true
+        };
+        if (uIdx >= 0) {
+          cleanedUsersList[uIdx] = adminUserObj;
+        } else {
+          cleanedUsersList.unshift(adminUserObj);
+        }
+
+        // Add helper roles
+        const rolesNeeded: { role: UserRole; roleGuj: string; defaultUser: string; defaultPass: string }[] = [
+          { role: 'Accountant', roleGuj: 'નામું રાખનાર (Accountant)', defaultUser: 'accountant', defaultPass: 'acc123' },
+          { role: 'DataEntry', roleGuj: 'ડેટા એન્ટ્રી ઓપરેટર (Data Entry)', defaultUser: 'operator', defaultPass: 'op123' },
+          { role: 'ReadOnly', roleGuj: 'માત્ર વાંચવા માટે (Read Only)', defaultUser: 'readonly', defaultPass: 'read123' }
+        ];
+        rolesNeeded.forEach(rn => {
+          if (!cleanedUsersList.some(u => (u.trustNameGuj || '').trim() === tName && u.role === rn.role)) {
+            cleanedUsersList.push({
+              id: `usr-${rn.defaultUser}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+              username: rn.defaultUser,
+              passwordHash: rn.defaultPass,
+              nameGuj: `${tName} (${rn.roleGuj.split(' ')[0]})`,
+              role: rn.role,
+              roleGuj: rn.roleGuj,
+              isActive: true,
+              trustNameGuj: tName,
+              isVendorRegistered: true
+            });
+          }
+        });
+
+        localStorage.setItem('trust_users', JSON.stringify(cleanedUsersList));
+        setAppUsers(cleanedUsersList);
+
+        // Mark activated
+        localStorage.setItem('trust_activated', 'true');
+        localStorage.setItem('trust_activation_key', tKey);
+        localStorage.setItem('trust_activated_name', tName);
+        setIsActivated(true);
+        setActivationKey(tKey);
+
+        setLoginSelectedTrust(tName);
+        setLoginUsername(tUser);
+        setLoginPassword(tPass);
+        setActivationSuccessMessage(`🎉 ${tName} નું સોફ્ટવેર લાયસન્સ સફળતાપૂર્વક સક્રિય થઈ ગયું છે! આપેલ આઈડી અને પાસવર્ડથી સીધા પ્રવેશ કરો.`);
+
+        // Clean query parameters from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (urlErr) {
+      console.error("URL setup processing error:", urlErr);
+    }
+
     // Check IndexedDB for linked file handle on app mount
     const checkLinkedFile = async () => {
       try {
@@ -1534,6 +1832,15 @@ export default function App() {
   // Sync state helpers
   const syncStorage = (key: string, data: any) => {
     localStorage.setItem(getScopedKey(key), JSON.stringify(data));
+    // If running in Online Web mode, sync to Google Firebase Firestore
+    if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
+      const targetTrust = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
+      if (key === 'trust_licenses' || key === 'trust_users') {
+        saveSystemMasterToFirebase(licenses, appUsers);
+      } else {
+        saveTrustDatasetToFirebase(targetTrust, key, data);
+      }
+    }
   };
 
   const addAuditLog = (actionGuj: string, moduleGuj: string, detailsGuj: string) => {
@@ -1557,8 +1864,8 @@ export default function App() {
     const cleanPass = loginPassword.trim();
 
     // Direct Super Admin Login via main App Login Screen
-    const isSuperAdminUser = cleanUser === 'patelmunaf90@gmail.com' || cleanUser === 'superadmin';
-    const isSuperAdminPass = cleanPass === 'munaf786' || cleanPass === 'admin123' || cleanPass === 'superadmin';
+    const isSuperAdminUser = cleanUser === 'patelmunaf90@gmail.com' || cleanUser === 'superadmin' || cleanUser === 'patelmunaf90';
+    const isSuperAdminPass = cleanPass === 'munaf786' || cleanPass === 'admin123' || cleanPass === 'superadmin' || cleanPass.toLowerCase() === 'munaf786';
     if (isSuperAdminUser && isSuperAdminPass) {
       const superAdminUser: UserType = {
         id: 'superadmin-master',
@@ -1594,7 +1901,7 @@ export default function App() {
     const user = userList.find(u => {
       const uName = (u.username || '').trim().toLowerCase();
       const uPass = (u.passwordHash || '').trim();
-      return uName === cleanUser && uPass === cleanPass;
+      return uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
     });
 
     if (!user) {
@@ -3302,6 +3609,21 @@ export default function App() {
                 <input type="text" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
                 <input type="password" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
 
+                {/* Activation Success Notification Banner */}
+                {activationSuccessMessage && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-200 font-medium"
+                  >
+                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-bold">લાયસન્સ સક્રિયકરણ સફળ (Activated!):</p>
+                      <p>{activationSuccessMessage}</p>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* Login Error Notification Banner */}
                 {loginError && (
                   <motion.div 
@@ -3326,10 +3648,10 @@ export default function App() {
                     type="text"
                     value={loginUsername}
                     onChange={(e) => {
-                       setLoginUsername(e.target.value.replace(/[^\x00-\x7F]/g, ''));
+                       setLoginUsername(e.target.value);
                        setLoginError(null);
                     }}
-                    placeholder="Enter username (English)"
+                    placeholder="Enter username (e.g. admin)"
                     lang="en"
                     autoCapitalize="none"
                     autoCorrect="off"
@@ -3350,7 +3672,7 @@ export default function App() {
                       type={showPassword ? "text" : "password"}
                       value={loginPassword}
                       onChange={(e) => {
-                        setLoginPassword(e.target.value.replace(/[^\x00-\x7F]/g, ''));
+                        setLoginPassword(e.target.value);
                         setLoginError(null);
                       }}
                       placeholder="••••••••"
@@ -3375,11 +3697,24 @@ export default function App() {
                 <button
                   id="btn-login-submit"
                   type="submit"
-                  className="w-full py-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <KeyRound className="w-4 h-4" />
                   પ્રવેશ મેળવો (Login Securely)
                 </button>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDirectActivationError(null);
+                      setShowDirectActivationModal(true);
+                    }}
+                    className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800/60 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> ➕ નવું ટ્રસ્ટ રજીસ્ટર કરો (Register New Trust)
+                  </button>
+                </div>
               </form>
             </div>
 
@@ -3392,6 +3727,132 @@ export default function App() {
             </div>
           </div>
         </motion.div>
+
+        {/* Direct Trust Account Registration Modal */}
+        {showDirectActivationModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4"
+            >
+              <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">નવું ટ્રસ્ટ રજીસ્ટર કરો</h3>
+                    <p className="text-[11px] text-slate-500">કી વગર સીધું નવું ટ્રસ્ટ એકાઉન્ટ બનાવો</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDirectActivationModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {directActivationError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs text-rose-700 dark:text-rose-300 font-medium">
+                  {directActivationError}
+                </div>
+              )}
+
+              <form onSubmit={handleDirectTrustActivation} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    ટ્રસ્ટનું પૂરું નામ (Trust Name) *
+                  </label>
+                  <input
+                    type="text"
+                    value={directTrustNameInput}
+                    onChange={(e) => setDirectTrustNameInput(e.target.value)}
+                    placeholder="દા.ત. શ્રી ગણેશ ચેરિટેબલ ટ્રસ્ટ"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      એડમિન યુઝરનેમ (Login ID) *
+                    </label>
+                    <input
+                      type="text"
+                      value={directAdminUser}
+                      onChange={(e) => setDirectAdminUser(e.target.value)}
+                      placeholder="admin"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      સુરક્ષા પાસવર્ડ (Password) *
+                    </label>
+                    <input
+                      type="text"
+                      value={directAdminPass}
+                      onChange={(e) => setDirectAdminPass(e.target.value)}
+                      placeholder="admin123"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      ઇમેઇલ (વૈકલ્પિક)
+                    </label>
+                    <input
+                      type="email"
+                      value={directEmailInput}
+                      onChange={(e) => setDirectEmailInput(e.target.value)}
+                      placeholder="trust@example.org"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      મોબાઇલ નંબર (વૈકલ્પિક)
+                    </label>
+                    <input
+                      type="text"
+                      value={directPhoneInput}
+                      onChange={(e) => setDirectPhoneInput(e.target.value)}
+                      placeholder="9825XXXXXX"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDirectActivationModal(false)}
+                    className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-colors cursor-pointer"
+                  >
+                    રદ કરો (Cancel)
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md transition-colors cursor-pointer"
+                  >
+                    રજીસ્ટર કરો અને લોગિન કરો
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
       </div>
     );
   }
@@ -3422,6 +3883,7 @@ export default function App() {
 
           <SuperAdminPanel
             licenses={licenses}
+            appUsers={appUsers}
             onAddLicense={handleAddLicense}
             onRenewLicense={handleRenewLicense}
             onEditLicense={handleEditLicense}
@@ -3626,6 +4088,41 @@ export default function App() {
               <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 animate-pulse" />
               <span>{formatLiveDateTime(liveDateTime)}</span>
             </span>
+
+            {/* Google Firebase Cloud / PC Offline Status Badge */}
+            {isElectronOfflineApp() ? (
+              <div 
+                className="p-2 px-3 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-xl font-bold flex items-center gap-1.5 shrink-0 text-xs border border-blue-200 dark:border-blue-800"
+                title="તમે પીસી ઇન્સ્ટોલ ઑફલાઇન ડેસ્કટોપ મોડમાં છો. તમામ ડેટા તમારા કમ્પ્યુટર પર લોકલ સાચવવામાં આવે છે."
+              >
+                <HardDrive className="w-4 h-4 text-blue-600" />
+                <div className="text-left leading-none">
+                  <div className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">PC ઑફલાઇન એપ</div>
+                  <div className="text-[10px] font-black">💾 લોકલ પીસી ડેટા</div>
+                </div>
+              </div>
+            ) : (
+              <button
+                id="header-btn-firebase-sync"
+                onClick={() => syncToFirebaseAndCloud()}
+                className="p-2 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm shrink-0 text-xs border border-emerald-300 dark:border-emerald-800 cursor-pointer"
+                title="ગૂગલ ફાયરબેઝ ક્લાઉડ સ્ટોરેજ (ક્લિક કરો તાત્કાલિક સિંક કરવા)"
+              >
+                <div className="relative">
+                  <Cloud className={`w-4 h-4 text-emerald-600 dark:text-emerald-400 ${isFirebaseSyncing ? 'animate-bounce' : ''}`} />
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                </div>
+                <div className="text-left leading-none">
+                  <div className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <span>Firebase Cloud</span>
+                    {isFirebaseSyncing && <span className="text-[8px] animate-pulse">સિંક...</span>}
+                  </div>
+                  <div className="text-[10px] font-black truncate max-w-[130px]">
+                    {lastFirebaseSyncTime ? `☁️ સિંક્ડ ${lastFirebaseSyncTime}` : '☁️ ક્લાઉડ સેવ સક્રિય'}
+                  </div>
+                </div>
+              </button>
+            )}
 
             {/* PC File Sync Menu Dropdown */}
             <div className="relative">
@@ -4072,6 +4569,11 @@ export default function App() {
                 <BackupModule
                   darkMode={darkMode}
                   trustSettings={trustSettings}
+                  onSyncToCloud={() => syncToFirebaseAndCloud()}
+                  onFetchFromCloud={() => fetchFromFirebaseCloud(false)}
+                  isCloudSyncing={isFirebaseSyncing}
+                  lastCloudSyncTime={lastFirebaseSyncTime}
+                  isOfflinePC={isElectronOfflineApp()}
                 />
               )}
 

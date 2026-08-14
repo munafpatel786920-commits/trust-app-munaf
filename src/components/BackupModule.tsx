@@ -4,14 +4,27 @@
  */
 
 import React, { useState } from 'react';
-import { Database, Download, RefreshCw, HardDrive, ShieldCheck, FileCheck, Check, Sparkles, AlertCircle } from 'lucide-react';
+import { Database, Download, RefreshCw, HardDrive, ShieldCheck, FileCheck, Check, Sparkles, AlertCircle, Cloud, Server, Wifi, Globe, CloudDownload, CloudUpload } from 'lucide-react';
 
 interface BackupModuleProps {
   darkMode: boolean;
   trustSettings?: any;
+  onSyncToCloud?: () => void;
+  onFetchFromCloud?: () => void;
+  isCloudSyncing?: boolean;
+  lastCloudSyncTime?: string;
+  isOfflinePC?: boolean;
 }
 
-export default function BackupModule({ darkMode, trustSettings }: BackupModuleProps) {
+export default function BackupModule({ 
+  darkMode, 
+  trustSettings,
+  onSyncToCloud,
+  onFetchFromCloud,
+  isCloudSyncing = false,
+  lastCloudSyncTime = '',
+  isOfflinePC = false
+}: BackupModuleProps) {
   const [backupsList, setBackupsList] = useState<any[]>([
     { id: 'b1', filename: 'TrustDB_20260731_DailyAuto.db', size: '1.4 MB', date: 'Yesterday, 11:59 PM', type: 'આપોઆપ (Auto)' },
     { id: 'b2', filename: 'TrustDB_20260725_AuditPrepared.db', size: '1.2 MB', date: '6 Days ago', type: 'મેન્યુઅલ (Manual)' }
@@ -808,8 +821,81 @@ start msedge --app="file:///%INSTALL_DIR:\\=/%/index.html"
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Side: Local SQLite DB Utilities */}
+        {/* Left Side: Local SQLite DB Utilities & Firebase Cloud Sync */}
         <div className="lg:col-span-2 space-y-6">
+          
+          {/* Cloud vs Offline Storage Status Banner */}
+          <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+              <h3 className="font-bold text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                <Cloud className="w-5 h-5" /> ગૂગલ ફાયરબેઝ ક્લાઉડ સિંક (Google Firebase Cloud)
+              </h3>
+              <div className="flex items-center gap-2">
+                {isOfflinePC ? (
+                  <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                    <HardDrive className="w-3.5 h-3.5" /> 🖥️ પીસી ઇન્સ્ટોલ ઑફલાઇન મોડ (PC Local Disk)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    ☁️ ઓનલાઇન ક્લાઉડ મોડ (Firebase Firestore Live)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-950/20 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-blue-800 dark:text-blue-300">
+                  <HardDrive className="w-4 h-4 text-blue-600" />
+                  <span>૧. PC ઇન્સ્ટોલ ઑફલાઇન એપ</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  તમારા કમ્પ્યુટર (Windows PC / Laptop) માં ઇન્સ્ટોલ થયેલ એપનો તમામ ડેટા લોકલ ફાઇલ (SQLite / JSON) માં આપમેળે તમારા પીસી પર સુરક્ષિત રહે છે.
+                </p>
+                <div className="text-[10px] font-mono text-blue-700 dark:text-blue-400 bg-white dark:bg-slate-900 p-2 rounded-lg border border-blue-100 dark:border-blue-900">
+                  📁 લોકલ પીસી સ્ટોરેજ: 100% સુરક્ષિત અને ઑફલાઇન ઉપલબ્ધ
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-emerald-300">
+                  <Cloud className="w-4 h-4 text-emerald-600" />
+                  <span>૨. ઓનલાઇન એપ (Google Firebase)</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  બ્રાઉઝર કે મોબાઇલ પર ચાલતી ઓનલાઇન એપનો ડેટા સીધો ગૂગલ ફાયરબેઝ (Google Firestore) માં 256-bit એન્ક્રિપ્શન સાથે રીયલ-ટાઇમ સેવ થાય છે.
+                </p>
+                <div className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-white dark:bg-slate-900 p-2 rounded-lg border border-emerald-100 dark:border-emerald-900">
+                  🌐 ક્લાઉડ ફાયરબેઝ: {lastCloudSyncTime ? `છેલ્લું સિંક: ${lastCloudSyncTime}` : 'રીયલ-ટાઇમ ઓટો સિંક સક્રિય'}
+                </div>
+              </div>
+            </div>
+
+            {/* Manual Cloud Sync Action Buttons */}
+            {onSyncToCloud && onFetchFromCloud && (
+              <div className="pt-2 flex flex-wrap gap-3">
+                <button
+                  onClick={onSyncToCloud}
+                  disabled={isCloudSyncing}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  <CloudUpload className={`w-4 h-4 ${isCloudSyncing ? 'animate-bounce' : ''}`} />
+                  <span>{isCloudSyncing ? 'ફાયરબેઝ પર સેવ થાય છે...' : 'હમણાં ફાયરબેઝ ક્લાઉડ પર સિંક કરો'}</span>
+                </button>
+
+                <button
+                  onClick={onFetchFromCloud}
+                  disabled={isCloudSyncing}
+                  className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold flex items-center gap-2 border border-indigo-200 dark:border-indigo-800 transition-all cursor-pointer"
+                >
+                  <CloudDownload className={`w-4 h-4 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+                  <span>ક્લાઉડમાંથી ડેટા મેળવો (Fetch from Cloud)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
             <h3 className="font-bold text-sm text-indigo-600 flex items-center gap-1.5 border-b pb-2">
               <Database className="w-4 h-4" /> લોકલ ડેટાબેઝ યુટિલિટીઝ (SQLite Engine)

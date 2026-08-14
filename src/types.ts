@@ -17,6 +17,8 @@ export interface User {
   isVendorRegistered?: boolean;
 }
 
+export type UserType = User;
+
 export interface Donor {
   id: string;
   nameGuj: string;
