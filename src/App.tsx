@@ -43,7 +43,8 @@ import {
   Download,
   Cloud,
   Plus,
-  Building2
+  Building2,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, checkServerVersion, reloadToUpdate } from './utils/pwaUpdate';
@@ -116,7 +117,8 @@ import {
   loadFullTrustFromFirebase, 
   saveSystemMasterToFirebase, 
   loadSystemMasterFromFirebase, 
-  subscribeToTrustFirebase 
+  subscribeToTrustFirebase,
+  subscribeToSystemMasterFirebase 
 } from './lib/firebase';
 
 export default function App() {
@@ -131,6 +133,7 @@ export default function App() {
   const [serverVersionNum, setServerVersionNum] = useState<string>('');
   const [isFirebaseSyncing, setIsFirebaseSyncing] = useState<boolean>(false);
   const [lastFirebaseSyncTime, setLastFirebaseSyncTime] = useState<string>('');
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
 
   useEffect(() => {
     // 1. Register Service Worker for PWA offline capabilities
@@ -1829,14 +1832,84 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [donors, receipts, vouchers, banks, members, assets, documents, tharavs, auditLogs, licenses, trustSettings, reconciliationList, inventoryItems, purchaseBills, salesBills, fileHandle, filePermissionGranted]);
 
+  // Real-time Cloud synchronization for master licenses and users across all devices (Mobile / PC)
+  useEffect(() => {
+    if (isElectronOfflineApp() || appMode === 'offline' || !navigator.onLine) return;
+
+    // Load initial system master from Firestore
+    loadSystemMasterFromFirebase().then(res => {
+      if (res) {
+        if (res.licenses && res.licenses.length > 0) {
+          setLicenses(res.licenses);
+          localStorage.setItem('trust_licenses', JSON.stringify(res.licenses));
+        }
+        if (res.users && res.users.length > 0) {
+          setAppUsers(res.users);
+          localStorage.setItem('trust_users', JSON.stringify(res.users));
+        }
+      }
+    }).catch(e => console.warn("Initial system master fetch:", e));
+
+    // Subscribe to live changes
+    const unsubMaster = subscribeToSystemMasterFirebase((data) => {
+      if (data.licenses && data.licenses.length > 0) {
+        setLicenses(data.licenses);
+        localStorage.setItem('trust_licenses', JSON.stringify(data.licenses));
+      }
+      if (data.users && data.users.length > 0) {
+        setAppUsers(data.users);
+        localStorage.setItem('trust_users', JSON.stringify(data.users));
+      }
+    });
+
+    return () => {
+      unsubMaster();
+    };
+  }, [appMode, isOnline]);
+
+  // Real-time Cloud synchronization for current logged in Trust's data
+  useEffect(() => {
+    if (!isLoggedIn || !currentSessionUser || isElectronOfflineApp() || appMode === 'offline' || !navigator.onLine) return;
+    const targetTrust = currentSessionUser.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
+    
+    // Automatically fetch full trust data on login
+    fetchFromFirebaseCloud(true);
+
+    // Live subscription to trust dataset
+    const unsubscribe = subscribeToTrustFirebase(targetTrust, (cloudData) => {
+      if (!cloudData) return;
+      if (cloudData.donors) { setDonors(cloudData.donors); localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(cloudData.donors)); }
+      if (cloudData.receipts) { setReceipts(cloudData.receipts); localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(cloudData.receipts)); }
+      if (cloudData.vouchers) { setVouchers(cloudData.vouchers); localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(cloudData.vouchers)); }
+      if (cloudData.banks) { setBanks(cloudData.banks); localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(cloudData.banks)); }
+      if (cloudData.members) { setMembers(cloudData.members); localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(cloudData.members)); }
+      if (cloudData.assets) { setAssets(cloudData.assets); localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(cloudData.assets)); }
+      if (cloudData.documents) { setDocuments(cloudData.documents); localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(cloudData.documents)); }
+      if (cloudData.tharavs) { setTharavs(cloudData.tharavs); localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(cloudData.tharavs)); }
+      if (cloudData.trustSettings) { setTrustSettings(cloudData.trustSettings); localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(cloudData.trustSettings)); }
+      if (cloudData.reconciliationList) { setReconciliationList(cloudData.reconciliationList); localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(cloudData.reconciliationList)); }
+      if (cloudData.inventoryItems) { setInventoryItems(cloudData.inventoryItems); localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(cloudData.inventoryItems)); }
+      if (cloudData.purchaseBills) { setPurchaseBills(cloudData.purchaseBills); localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(cloudData.purchaseBills)); }
+      if (cloudData.salesBills) { setSalesBills(cloudData.salesBills); localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(cloudData.salesBills)); }
+      if (cloudData.sharePurchases) { setSharePurchases(cloudData.sharePurchases); localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(cloudData.sharePurchases)); }
+      if (cloudData.loanApplications) { setLoanApplications(cloudData.loanApplications); localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(cloudData.loanApplications)); }
+      const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastFirebaseSyncTime(nowTime);
+    });
+
+    return () => unsubscribe();
+  }, [isLoggedIn, currentSessionUser?.id, currentSessionUser?.trustNameGuj, appMode]);
+
   // Sync state helpers
   const syncStorage = (key: string, data: any) => {
     localStorage.setItem(getScopedKey(key), JSON.stringify(data));
     // If running in Online Web mode, sync to Google Firebase Firestore
     if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
       const targetTrust = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
-      if (key === 'trust_licenses' || key === 'trust_users') {
-        saveSystemMasterToFirebase(licenses, appUsers);
+      if (key === 'trust_licenses') {
+        saveSystemMasterToFirebase(data, appUsers);
+      } else if (key === 'trust_users') {
+        saveSystemMasterToFirebase(licenses, data);
       } else {
         saveTrustDatasetToFirebase(targetTrust, key, data);
       }
@@ -1858,95 +1931,145 @@ export default function App() {
   };
 
   // Login handler
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUser = loginUsername.trim().toLowerCase();
     const cleanPass = loginPassword.trim();
+    setIsLoggingIn(true);
+    setLoginError(null);
 
-    // Direct Super Admin Login via main App Login Screen
-    const isSuperAdminUser = cleanUser === 'patelmunaf90@gmail.com' || cleanUser === 'superadmin' || cleanUser === 'patelmunaf90';
-    const isSuperAdminPass = cleanPass === 'munaf786' || cleanPass === 'admin123' || cleanPass === 'superadmin' || cleanPass.toLowerCase() === 'munaf786';
-    if (isSuperAdminUser && isSuperAdminPass) {
-      const superAdminUser: UserType = {
-        id: 'superadmin-master',
-        username: 'patelmunaf90@gmail.com',
-        passwordHash: cleanPass,
-        nameGuj: 'સુપર એડમિન (વેન્ડર)',
-        roleGuj: 'સોફ્ટવેર વેન્ડર એડમિનિસ્ટ્રેટર',
-        role: 'Admin',
-        isActive: true
-      };
-      setLoginError(null);
-      setIsSuperAdminAuthenticated(true);
-      setCurrentSessionUser(superAdminUser);
-      setIsLoggedIn(true);
-      setActiveTab('superadmin');
-      setLoginUsername('');
-      setLoginPassword('');
-      addAuditLog(
-        'સુપર એડમિન સફળ લોગિન',
-        'વેન્ડર કંટ્રોલ (Super Admin)',
-        'સુપર એડમિન દ્વારા મુખ્ય લોગિન સ્ક્રીન વડે સફળતાપૂર્વક લાયસન્સિંગ પેનલમાં પ્રવેશ કરાયો.'
-      );
-      return;
-    }
-
-    // Check if any trust exists
-    if (licenses.length === 0) {
-      setLoginError('પ્રવેશ નામંજૂર: સિસ્ટમમાં કોઈ પણ ટ્રસ્ટ નોંધાયેલ નથી. સુપર એડમિન તરીકે લોગિન કરો.');
-      return;
-    }
-
-    const userList = appUsers;
-    const user = userList.find(u => {
-      const uName = (u.username || '').trim().toLowerCase();
-      const uPass = (u.passwordHash || '').trim();
-      return uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
-    });
-
-    if (!user) {
-      setLoginError('અમાન્ય વપરાશકર્તા નામ અથવા પાસવર્ડ. કૃપા કરીને સાચી વિગતો દાખલ કરો.');
-      return;
-    }
-
-    // Check if the user's trust license is active (not deactivated or expired)
-    const userTrustName = (user.trustNameGuj || '').trim();
-    const matchedLicense = licenses.find(l => (l.trustNameGuj || '').trim() === userTrustName);
-    if (matchedLicense) {
-      const isStatusActive = matchedLicense.status.startsWith('સક્રિય') || 
-                             (matchedLicense.status.toLowerCase().includes('active') && 
-                              !matchedLicense.status.toLowerCase().includes('in') &&
-                              !matchedLicense.status.toLowerCase().includes('deactivat'));
-      if (!isStatusActive) {
-        setLoginError('પ્રવેશ નામંજૂર: આ ટ્રસ્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) કરવામાં આવ્યું છે. લોગિન કરી શકાશે નહીં.');
+    try {
+      // Direct Super Admin Login via main App Login Screen
+      const isSuperAdminUser = cleanUser === 'patelmunaf90@gmail.com' || cleanUser === 'superadmin' || cleanUser === 'patelmunaf90';
+      const isSuperAdminPass = cleanPass === 'munaf786' || cleanPass === 'admin123' || cleanPass === 'superadmin' || cleanPass.toLowerCase() === 'munaf786';
+      if (isSuperAdminUser && isSuperAdminPass) {
+        const superAdminUser: UserType = {
+          id: 'superadmin-master',
+          username: 'patelmunaf90@gmail.com',
+          passwordHash: cleanPass,
+          nameGuj: 'સુપર એડમિન (વેન્ડર)',
+          roleGuj: 'સોફ્ટવેર વેન્ડર એડમિનિસ્ટ્રેટર',
+          role: 'Admin',
+          isActive: true
+        };
+        setLoginError(null);
+        setIsSuperAdminAuthenticated(true);
+        setCurrentSessionUser(superAdminUser);
+        setIsLoggedIn(true);
+        setActiveTab('superadmin');
+        setLoginUsername('');
+        setLoginPassword('');
+        addAuditLog(
+          'સુપર એડમિન સફળ લોગિન',
+          'વેન્ડર કંટ્રોલ (Super Admin)',
+          'સુપર એડમિન દ્વારા મુખ્ય લોગિન સ્ક્રીન વડે સફળતાપૂર્વક લાયસન્સિંગ પેનલમાં પ્રવેશ કરાયો.'
+        );
         return;
       }
-    }
 
-    if (user.isActive === false) {
-      setLoginError('પ્રવેશ નામંજૂર: તમારું યુઝર એકાઉન્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) કરેલ છે. લોગિન કરી શકાશે નહીં.');
-      return;
-    }
+      // 1. Refresh from Google Firebase Firestore to ensure all accounts created on PC or other devices are present
+      let currentLicList = licenses;
+      let currentUserList = appUsers;
 
-    setLoginError(null);
-    setIsSuperAdminAuthenticated(false);
-    setCurrentSessionUser(user);
-    setIsLoggedIn(true);
-    setActiveTab('control_panel');
-    // Log audit
-    const updatedLogs = [
-      {
-        id: 'log-' + Date.now(),
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        username: user.username,
-        actionGuj: 'વપરાશકર્તા સફળ લોગિન',
-        moduleGuj: 'પ્રવેશ (Auth)',
-        detailsGuj: `${user.nameGuj} દ્વારા ${user.roleGuj} હોદ્દા સાથે સિસ્ટમમાં પ્રવેશ કરાયો.`
-      },
-      ...auditLogs
-    ];
-    setAuditLogs(updatedLogs);
-    syncStorage('trust_audit_logs', updatedLogs);
+      if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
+        try {
+          const remoteMaster = await loadSystemMasterFromFirebase();
+          if (remoteMaster) {
+            if (remoteMaster.licenses && remoteMaster.licenses.length > 0) {
+              currentLicList = remoteMaster.licenses;
+              setLicenses(remoteMaster.licenses);
+              localStorage.setItem('trust_licenses', JSON.stringify(remoteMaster.licenses));
+            }
+            if (remoteMaster.users && remoteMaster.users.length > 0) {
+              currentUserList = remoteMaster.users;
+              setAppUsers(remoteMaster.users);
+              localStorage.setItem('trust_users', JSON.stringify(remoteMaster.users));
+            }
+          }
+        } catch (fbErr) {
+          console.warn("Could not query Firebase for login verification, using local state:", fbErr);
+        }
+      }
+
+      // Check if any trust exists
+      if (currentLicList.length === 0) {
+        setLoginError('પ્રવેશ નામંજૂર: સિસ્ટમમાં કોઈ પણ ટ્રસ્ટ નોંધાયેલ નથી. સુપર એડમિન તરીકે લોગિન કરો.');
+        return;
+      }
+
+      // Find user matching username & password (and selected trust if specified)
+      let matchedUser = currentUserList.find(u => {
+        const uName = (u.username || '').trim().toLowerCase();
+        const uPass = (u.passwordHash || '').trim();
+        const matchesCreds = uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
+        if (!matchesCreds) return false;
+        if (loginSelectedTrust && loginSelectedTrust !== 'all') {
+          return (u.trustNameGuj || '').trim() === loginSelectedTrust.trim();
+        }
+        return true;
+      });
+
+      // If not found with trust filter, try without filter
+      if (!matchedUser) {
+        matchedUser = currentUserList.find(u => {
+          const uName = (u.username || '').trim().toLowerCase();
+          const uPass = (u.passwordHash || '').trim();
+          return uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
+        });
+      }
+
+      if (!matchedUser) {
+        setLoginError('અમાન્ય વપરાશકર્તા નામ અથવા પાસવર્ડ. કૃપા કરીને સાચી વિગતો દાખલ કરો.');
+        return;
+      }
+
+      // Check if the user's trust license is active (not deactivated or expired)
+      const userTrustName = (matchedUser.trustNameGuj || '').trim();
+      const matchedLicense = currentLicList.find(l => (l.trustNameGuj || '').trim() === userTrustName);
+      if (matchedLicense) {
+        const isStatusActive = matchedLicense.status.startsWith('સક્રિય') || 
+                               (matchedLicense.status.toLowerCase().includes('active') && 
+                                !matchedLicense.status.toLowerCase().includes('in') &&
+                                !matchedLicense.status.toLowerCase().includes('deactivat'));
+        if (!isStatusActive) {
+          setLoginError('પ્રવેશ નામંજૂર: આ ટ્રસ્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) કરવામાં આવ્યું છે. લોગિન કરી શકાશે નહીં.');
+          return;
+        }
+      }
+
+      if (matchedUser.isActive === false) {
+        setLoginError('પ્રવેશ નામંજૂર: તમારું યુઝર એકાઉન્ટ ડી-એક્ટિવેટ (Deactivated / Inactive) કરેલ છે. લોગિન કરી શકાશે નહીં.');
+        return;
+      }
+
+      setLoginError(null);
+      setIsSuperAdminAuthenticated(false);
+      setCurrentSessionUser(matchedUser);
+      setIsLoggedIn(true);
+      setActiveTab('control_panel');
+
+      // Fetch cloud data for this trust immediately
+      if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
+        fetchFromFirebaseCloud(true);
+      }
+
+      // Log audit
+      const updatedLogs = [
+        {
+          id: 'log-' + Date.now(),
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          username: matchedUser.username,
+          actionGuj: 'વપરાશકર્તા સફળ લોગિન',
+          moduleGuj: 'પ્રવેશ (Auth)',
+          detailsGuj: `${matchedUser.nameGuj} દ્વારા ${matchedUser.roleGuj} હોદ્દા સાથે સિસ્ટમમાં પ્રવેશ કરાયો.`
+        },
+        ...auditLogs
+      ];
+      setAuditLogs(updatedLogs);
+      syncStorage('trust_audit_logs', updatedLogs);
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const handleLogout = () => {
@@ -3600,8 +3723,14 @@ export default function App() {
           <div className="md:col-span-6 p-8 md:p-10 flex flex-col justify-between bg-white dark:bg-slate-900">
             <div>
               <div className="mb-6">
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">સિસ્ટમમાં પ્રવેશ કરો</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">તમારું યુઝરનેમ અને પાસવર્ડ આપી સુરક્ષિત લોગિન કરો.</p>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">સિસ્ટમમાં પ્રવેશ કરો</h3>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                    <Cloud className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    ફાયરબેઝ ક્લાઉડ સિંક
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">મોબાઇલ કે કમ્પ્યુટરમાંથી તમારા આઈડી-પાસવર્ડ વડે ગમે ત્યાંથી લોગિન કરો.</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
@@ -3697,24 +3826,22 @@ export default function App() {
                 <button
                   id="btn-login-submit"
                   type="submit"
-                  className="w-full py-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={isLoggingIn}
+                  className="w-full py-3 bg-emerald-700 hover:bg-emerald-600 disabled:bg-emerald-800/70 text-white rounded-xl text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                 >
-                  <KeyRound className="w-4 h-4" />
-                  પ્રવેશ મેળવો (Login Securely)
+                  {isLoggingIn ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      પ્રવેશ ચકાસી રહ્યા છીએ... (Authenticating...)
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      પ્રવેશ મેળવો (Login Securely)
+                    </>
+                  )}
                 </button>
 
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDirectActivationError(null);
-                      setShowDirectActivationModal(true);
-                    }}
-                    className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800/60 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> ➕ નવું ટ્રસ્ટ રજીસ્ટર કરો (Register New Trust)
-                  </button>
-                </div>
               </form>
             </div>
 
@@ -3727,132 +3854,6 @@ export default function App() {
             </div>
           </div>
         </motion.div>
-
-        {/* Direct Trust Account Registration Modal */}
-        {showDirectActivationModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4"
-            >
-              <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600">
-                    <Building2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white">નવું ટ્રસ્ટ રજીસ્ટર કરો</h3>
-                    <p className="text-[11px] text-slate-500">કી વગર સીધું નવું ટ્રસ્ટ એકાઉન્ટ બનાવો</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDirectActivationModal(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {directActivationError && (
-                <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs text-rose-700 dark:text-rose-300 font-medium">
-                  {directActivationError}
-                </div>
-              )}
-
-              <form onSubmit={handleDirectTrustActivation} className="space-y-3 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
-                    ટ્રસ્ટનું પૂરું નામ (Trust Name) *
-                  </label>
-                  <input
-                    type="text"
-                    value={directTrustNameInput}
-                    onChange={(e) => setDirectTrustNameInput(e.target.value)}
-                    placeholder="દા.ત. શ્રી ગણેશ ચેરિટેબલ ટ્રસ્ટ"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
-                      એડમિન યુઝરનેમ (Login ID) *
-                    </label>
-                    <input
-                      type="text"
-                      value={directAdminUser}
-                      onChange={(e) => setDirectAdminUser(e.target.value)}
-                      placeholder="admin"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-mono"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
-                      સુરક્ષા પાસવર્ડ (Password) *
-                    </label>
-                    <input
-                      type="text"
-                      value={directAdminPass}
-                      onChange={(e) => setDirectAdminPass(e.target.value)}
-                      placeholder="admin123"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-mono"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
-                      ઇમેઇલ (વૈકલ્પિક)
-                    </label>
-                    <input
-                      type="email"
-                      value={directEmailInput}
-                      onChange={(e) => setDirectEmailInput(e.target.value)}
-                      placeholder="trust@example.org"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
-                      મોબાઇલ નંબર (વૈકલ્પિક)
-                    </label>
-                    <input
-                      type="text"
-                      value={directPhoneInput}
-                      onChange={(e) => setDirectPhoneInput(e.target.value)}
-                      placeholder="9825XXXXXX"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDirectActivationModal(false)}
-                    className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-colors cursor-pointer"
-                  >
-                    રદ કરો (Cancel)
-                  </button>
-                  <button
-                    type="submit"
-                    className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md transition-colors cursor-pointer"
-                  >
-                    રજીસ્ટર કરો અને લોગિન કરો
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
       </div>
     );
   }

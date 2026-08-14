@@ -223,4 +223,41 @@ export const subscribeToTrustFirebase = (
   }
 };
 
+export const subscribeToSystemMasterFirebase = (
+  onData: (data: { licenses?: any[]; users?: any[] }) => void
+): (() => void) => {
+  if (!db || isElectronOfflineApp() || !navigator.onLine) {
+    return () => {};
+  }
+  try {
+    const licRef = doc(db, 'system_master', 'licenses');
+    const userRef = doc(db, 'system_master', 'users');
+
+    let currentLicenses: any[] | undefined;
+    let currentUsers: any[] | undefined;
+
+    const unsubLic = onSnapshot(licRef, (snap) => {
+      if (snap.exists()) {
+        currentLicenses = snap.data()?.list;
+        onData({ licenses: currentLicenses, users: currentUsers });
+      }
+    }, (err) => console.warn("Firebase Licenses listener error:", err));
+
+    const unsubUser = onSnapshot(userRef, (snap) => {
+      if (snap.exists()) {
+        currentUsers = snap.data()?.list;
+        onData({ licenses: currentLicenses, users: currentUsers });
+      }
+    }, (err) => console.warn("Firebase Users listener error:", err));
+
+    return () => {
+      unsubLic();
+      unsubUser();
+    };
+  } catch (e) {
+    console.error("subscribeToSystemMasterFirebase failed:", e);
+    return () => {};
+  }
+};
+
 export { db, app };
