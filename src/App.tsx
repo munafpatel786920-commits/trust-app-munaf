@@ -44,7 +44,14 @@ import {
   Cloud,
   Plus,
   Building2,
-  Loader2
+  Loader2,
+  Receipt,
+  CreditCard,
+  UserCheck,
+  Award,
+  ShoppingCart,
+  FileSpreadsheet,
+  UserCog
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, checkServerVersion, reloadToUpdate } from './utils/pwaUpdate';
@@ -107,12 +114,13 @@ import TrustSettingsModule from './components/TrustSettingsModule';
 import AgendaTharavModule from './components/AgendaTharavModule';
 import UserManagementModule from './components/UserManagementModule';
 import CalculatorWidget from './components/CalculatorWidget';
+import Sidebar from './components/Sidebar';
 import { translitWord, localTransliterate } from './utils/transliterator';
 import { 
   db, 
   isElectronOfflineApp, 
   isOnlineCloudMode, 
-  saveTrustDatasetToFirebase, 
+  saveTrustDatasetToFirebase, deleteTrustFromFirebase, 
   saveFullTrustToFirebase, 
   loadFullTrustFromFirebase, 
   saveSystemMasterToFirebase, 
@@ -134,6 +142,13 @@ export default function App() {
   const [isFirebaseSyncing, setIsFirebaseSyncing] = useState<boolean>(false);
   const [lastFirebaseSyncTime, setLastFirebaseSyncTime] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('trust_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     // 1. Register Service Worker for PWA offline capabilities
@@ -230,7 +245,20 @@ export default function App() {
     }
   };
 
-  const fetchFromFirebaseCloud = async (silent = false) => {
+  const mergeList = (localList: any[], cloudList: any[]) => {
+    if (!cloudList || !Array.isArray(cloudList) || cloudList.length === 0) return localList;
+    if (!localList || !Array.isArray(localList) || localList.length === 0) return cloudList;
+    const map = new Map();
+    cloudList.forEach(item => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    localList.forEach(item => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    return Array.from(map.values());
+  };
+
+  const fetchFromFirebaseCloud = async (silent = false, overrideTrustName?: string) => {
     if (isElectronOfflineApp()) {
       if (!silent) alert('તમે પીસી ઑફલાઇન ડેસ્કટોપ મોડમાં છો. તમારો ડેટા તમારા પીસીમાં સુરક્ષિત છે.');
       return;
@@ -239,7 +267,7 @@ export default function App() {
       if (!silent) alert('ઓફલાઇન મોડમાં છો અથવા ઇન્ટરનેટ ઉપલબ્ધ નથી!');
       return;
     }
-    const targetTrust = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
+    const targetTrust = overrideTrustName || currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
     try {
       setIsFirebaseSyncing(true);
       const [cloudTrustData, systemMaster] = await Promise.all([
@@ -259,21 +287,129 @@ export default function App() {
       }
 
       if (cloudTrustData) {
-        if (cloudTrustData.donors) { setDonors(cloudTrustData.donors); localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(cloudTrustData.donors)); }
-        if (cloudTrustData.receipts) { setReceipts(cloudTrustData.receipts); localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(cloudTrustData.receipts)); }
-        if (cloudTrustData.vouchers) { setVouchers(cloudTrustData.vouchers); localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(cloudTrustData.vouchers)); }
-        if (cloudTrustData.banks) { setBanks(cloudTrustData.banks); localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(cloudTrustData.banks)); }
-        if (cloudTrustData.members) { setMembers(cloudTrustData.members); localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(cloudTrustData.members)); }
-        if (cloudTrustData.assets) { setAssets(cloudTrustData.assets); localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(cloudTrustData.assets)); }
-        if (cloudTrustData.documents) { setDocuments(cloudTrustData.documents); localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(cloudTrustData.documents)); }
-        if (cloudTrustData.tharavs) { setTharavs(cloudTrustData.tharavs); localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(cloudTrustData.tharavs)); }
-        if (cloudTrustData.trustSettings) { setTrustSettings(cloudTrustData.trustSettings); localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(cloudTrustData.trustSettings)); }
-        if (cloudTrustData.reconciliationList) { setReconciliationList(cloudTrustData.reconciliationList); localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(cloudTrustData.reconciliationList)); }
-        if (cloudTrustData.inventoryItems) { setInventoryItems(cloudTrustData.inventoryItems); localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(cloudTrustData.inventoryItems)); }
-        if (cloudTrustData.purchaseBills) { setPurchaseBills(cloudTrustData.purchaseBills); localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(cloudTrustData.purchaseBills)); }
-        if (cloudTrustData.salesBills) { setSalesBills(cloudTrustData.salesBills); localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(cloudTrustData.salesBills)); }
-        if (cloudTrustData.sharePurchases) { setSharePurchases(cloudTrustData.sharePurchases); localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(cloudTrustData.sharePurchases)); }
-        if (cloudTrustData.loanApplications) { setLoanApplications(cloudTrustData.loanApplications); localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(cloudTrustData.loanApplications)); }
+        const dnr = cloudTrustData.trust_donors || cloudTrustData.donors;
+        if (dnr) {
+          setDonors(prev => {
+          const merged = mergeList(prev, dnr);
+          localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const rcp = cloudTrustData.trust_receipts || cloudTrustData.receipts;
+        if (rcp) {
+          setReceipts(prev => {
+          const merged = mergeList(prev, rcp);
+          localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const vch = cloudTrustData.trust_vouchers || cloudTrustData.vouchers;
+        if (vch) {
+          setVouchers(prev => {
+          const merged = mergeList(prev, vch);
+          localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const bnk = cloudTrustData.trust_banks || cloudTrustData.banks;
+        if (bnk) {
+          setBanks(prev => {
+          const merged = mergeList(prev, bnk);
+          localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const mbr = cloudTrustData.trust_members || cloudTrustData.members;
+        if (mbr) {
+          setMembers(prev => {
+          const merged = mergeList(prev, mbr);
+          localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const ast = cloudTrustData.trust_assets || cloudTrustData.assets;
+        if (ast) {
+          setAssets(prev => {
+          const merged = mergeList(prev, ast);
+          localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const docList = cloudTrustData.trust_documents || cloudTrustData.documents;
+        if (docList) {
+          setDocuments(prev => {
+          const merged = mergeList(prev, docList);
+          localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const thr = cloudTrustData.trust_tharavs || cloudTrustData.tharavs;
+        if (thr) {
+          setTharavs(prev => {
+          const merged = mergeList(prev, thr);
+          localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const setts = cloudTrustData.trust_settings || cloudTrustData.trustSettings;
+        if (setts) { 
+          const mergedSetts = { ...setts, trustNameGuj: setts.trustNameGuj || targetTrust };
+          setTrustSettings(mergedSetts); 
+          localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(mergedSetts)); 
+        } else {
+          setTrustSettings(prev => ({
+            ...prev,
+            trustNameGuj: targetTrust
+          }));
+        }
+        const rcn = cloudTrustData.trust_reconciliation || cloudTrustData.reconciliationList;
+        if (rcn) {
+          setReconciliationList(prev => {
+          const merged = mergeList(prev, rcn);
+          localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const inv = cloudTrustData.trust_inventory_items || cloudTrustData.inventoryItems;
+        if (inv) {
+          setInventoryItems(prev => {
+          const merged = mergeList(prev, inv);
+          localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const pb = cloudTrustData.trust_purchase_bills || cloudTrustData.purchaseBills;
+        if (pb) {
+          setPurchaseBills(prev => {
+          const merged = mergeList(prev, pb);
+          localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const sb = cloudTrustData.trust_sales_bills || cloudTrustData.salesBills;
+        if (sb) {
+          setSalesBills(prev => {
+          const merged = mergeList(prev, sb);
+          localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const sp = cloudTrustData.trust_share_purchases || cloudTrustData.sharePurchases;
+        if (sp) {
+          setSharePurchases(prev => {
+          const merged = mergeList(prev, sp);
+          localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(merged));
+          return merged;
+        });
+        }
+        const la = cloudTrustData.trust_loan_applications || cloudTrustData.loanApplications;
+        if (la) {
+          setLoanApplications(prev => {
+          const merged = mergeList(prev, la);
+          localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(merged));
+          return merged;
+        });
+        }
         
         const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         setLastFirebaseSyncTime(nowTime);
@@ -510,7 +646,7 @@ export default function App() {
 
     const updatedUsers = [newAdminUser, ...filteredUsersList];
     setAppUsers(updatedUsers);
-    localStorage.setItem('trust_users', JSON.stringify(updatedUsers));
+    syncStorage('trust_users', updatedUsers);
 
     localStorage.setItem('trust_activated', 'true');
     localStorage.setItem('trust_activation_key', cleanKey);
@@ -656,7 +792,7 @@ export default function App() {
     });
 
     setAppUsers(curUsers);
-    localStorage.setItem('trust_users', JSON.stringify(curUsers));
+    syncStorage('trust_users', curUsers);
 
     // 3. Mark app as ready and activated
     localStorage.setItem('trust_activated', 'true');
@@ -1149,7 +1285,7 @@ export default function App() {
   };
 
   const isTabAllowedForRole = (tab: string, role: UserRole): boolean => {
-    if (tab === 'control_panel' || tab === 'dashboard') return true;
+    if (tab === 'dashboard') return true;
     if (role === 'Admin') return true;
     if (role === 'Accountant') {
       return !['users', 'settings'].includes(tab);
@@ -1197,6 +1333,11 @@ export default function App() {
   const getScopedKey = (key: string) => {
     if (key === 'trust_licenses' || key === 'trust_users') {
       return key;
+    }
+    const currentTrustName = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj;
+    if (currentTrustName) {
+      const cleanTrustName = currentTrustName.trim().toLowerCase().replace(/[\/\#\?\[\]\s]+/g, '_');
+      return `${key}_${cleanTrustName}`;
     }
     if (currentSessionUser && !isDefaultUser(currentSessionUser.username)) {
       return `${key}_${currentSessionUser.username.toLowerCase()}`;
@@ -1399,7 +1540,7 @@ export default function App() {
     });
 
     setAppUsers(cleanedUsersList);
-    localStorage.setItem('trust_users', JSON.stringify(cleanedUsersList));
+    syncStorage('trust_users', cleanedUsersList);
 
     // Auto-select the active or newly registered trust for login dropdown on mount
     let targetSelectTrust = '';
@@ -1538,7 +1679,7 @@ export default function App() {
           }
         });
 
-        localStorage.setItem('trust_users', JSON.stringify(cleanedUsersList));
+        syncStorage('trust_users', cleanedUsersList);
         setAppUsers(cleanedUsersList);
 
         // Mark activated
@@ -1583,47 +1724,45 @@ export default function App() {
 
   // 2. Load user-specific transactional and setting data when currentSessionUser changes
   useEffect(() => {
-    const isCustom = currentSessionUser && !isDefaultUser(currentSessionUser.username);
-    const scopeSuffix = isCustom ? `_${currentSessionUser.username.toLowerCase()}` : '';
+    if (!currentSessionUser) return;
+
+    const trustName = currentSessionUser.trustNameGuj;
+    const isCustom = !isDefaultUser(currentSessionUser.username);
+
+    const scopeSuffix = trustName 
+      ? `_${trustName.trim().toLowerCase().replace(/[\/\#\?\[\]\s]+/g, '_')}`
+      : isCustom ? `_${currentSessionUser.username.toLowerCase()}` : '';
 
     const getScopedKeyLocal = (key: string) => {
-      return isCustom ? `${key}${scopeSuffix}` : key;
+      return (trustName || isCustom) ? `${key}${scopeSuffix}` : key;
     };
 
     // Load Settings
     const storedSettings = localStorage.getItem(getScopedKeyLocal('trust_settings'));
     if (storedSettings) {
       const parsed = JSON.parse(storedSettings) as TrustSettings;
-      if (parsed.trustNameGuj === 'શ્રી સાર્વજનિક કલ્યાણ ટ્રસ્ટ') {
-        parsed.trustNameGuj = 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ';
-        parsed.trustNameEng = 'Progressive Welfare Trust';
-        setTrustSettings(parsed);
-        localStorage.setItem(getScopedKeyLocal('trust_settings'), JSON.stringify(parsed));
-      } else {
-        setTrustSettings(parsed);
+      if (trustName) {
+        parsed.trustNameGuj = trustName;
       }
+      setTrustSettings(parsed);
+      localStorage.setItem(getScopedKeyLocal('trust_settings'), JSON.stringify(parsed));
     } else {
-      if (isCustom) {
-        const customSettings: TrustSettings = {
-          ...DEFAULT_TRUST_SETTINGS,
-          trustNameGuj: currentSessionUser.trustNameGuj || 'નવું રજીસ્ટર્ડ ટ્રસ્ટ',
-          trustNameEng: '',
-          regNoGuj: '',
-          addressGuj: '',
-          phone: '',
-          email: '',
-          panNumber: '',
-          tanNumber: '',
-          section12ANo: '',
-          section80GNo: '',
-          openingCashBalance: 0
-        };
-        setTrustSettings(customSettings);
-        localStorage.setItem(getScopedKeyLocal('trust_settings'), JSON.stringify(customSettings));
-      } else {
-        setTrustSettings(DEFAULT_TRUST_SETTINGS);
-        localStorage.setItem('trust_settings', JSON.stringify(DEFAULT_TRUST_SETTINGS));
-      }
+      const initialSettings: TrustSettings = {
+        ...DEFAULT_TRUST_SETTINGS,
+        trustNameGuj: trustName || DEFAULT_TRUST_SETTINGS.trustNameGuj,
+        trustNameEng: '',
+        regNoGuj: '',
+        addressGuj: '',
+        phone: '',
+        email: '',
+        panNumber: '',
+        tanNumber: '',
+        section12ANo: '',
+        section80GNo: '',
+        openingCashBalance: 0
+      };
+      setTrustSettings(initialSettings);
+      localStorage.setItem(getScopedKeyLocal('trust_settings'), JSON.stringify(initialSettings));
     }
 
     // Load Donors
@@ -1789,7 +1928,7 @@ export default function App() {
       setLoanApplications(initialLoans);
       localStorage.setItem(getScopedKeyLocal('trust_loan_applications'), JSON.stringify(initialLoans));
     }
-  }, [currentSessionUser]);
+  }, [currentSessionUser?.id, currentSessionUser?.username]);
 
   // Auto-save database to PC File if connected and permitted
   useEffect(() => {
@@ -1852,11 +1991,11 @@ export default function App() {
 
     // Subscribe to live changes
     const unsubMaster = subscribeToSystemMasterFirebase((data) => {
-      if (data.licenses && data.licenses.length > 0) {
+      if (data.licenses) {
         setLicenses(data.licenses);
         localStorage.setItem('trust_licenses', JSON.stringify(data.licenses));
       }
-      if (data.users && data.users.length > 0) {
+      if (data.users) {
         setAppUsers(data.users);
         localStorage.setItem('trust_users', JSON.stringify(data.users));
       }
@@ -1878,21 +2017,120 @@ export default function App() {
     // Live subscription to trust dataset
     const unsubscribe = subscribeToTrustFirebase(targetTrust, (cloudData) => {
       if (!cloudData) return;
-      if (cloudData.donors) { setDonors(cloudData.donors); localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(cloudData.donors)); }
-      if (cloudData.receipts) { setReceipts(cloudData.receipts); localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(cloudData.receipts)); }
-      if (cloudData.vouchers) { setVouchers(cloudData.vouchers); localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(cloudData.vouchers)); }
-      if (cloudData.banks) { setBanks(cloudData.banks); localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(cloudData.banks)); }
-      if (cloudData.members) { setMembers(cloudData.members); localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(cloudData.members)); }
-      if (cloudData.assets) { setAssets(cloudData.assets); localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(cloudData.assets)); }
-      if (cloudData.documents) { setDocuments(cloudData.documents); localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(cloudData.documents)); }
-      if (cloudData.tharavs) { setTharavs(cloudData.tharavs); localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(cloudData.tharavs)); }
-      if (cloudData.trustSettings) { setTrustSettings(cloudData.trustSettings); localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(cloudData.trustSettings)); }
-      if (cloudData.reconciliationList) { setReconciliationList(cloudData.reconciliationList); localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(cloudData.reconciliationList)); }
-      if (cloudData.inventoryItems) { setInventoryItems(cloudData.inventoryItems); localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(cloudData.inventoryItems)); }
-      if (cloudData.purchaseBills) { setPurchaseBills(cloudData.purchaseBills); localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(cloudData.purchaseBills)); }
-      if (cloudData.salesBills) { setSalesBills(cloudData.salesBills); localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(cloudData.salesBills)); }
-      if (cloudData.sharePurchases) { setSharePurchases(cloudData.sharePurchases); localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(cloudData.sharePurchases)); }
-      if (cloudData.loanApplications) { setLoanApplications(cloudData.loanApplications); localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(cloudData.loanApplications)); }
+      const dnr = cloudData.trust_donors || cloudData.donors;
+      if (dnr) {
+        setDonors(prev => {
+          const merged = mergeList(prev, dnr);
+          localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const rcp = cloudData.trust_receipts || cloudData.receipts;
+      if (rcp) {
+        setReceipts(prev => {
+          const merged = mergeList(prev, rcp);
+          localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const vch = cloudData.trust_vouchers || cloudData.vouchers;
+      if (vch) {
+        setVouchers(prev => {
+          const merged = mergeList(prev, vch);
+          localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const bnk = cloudData.trust_banks || cloudData.banks;
+      if (bnk) {
+        setBanks(prev => {
+          const merged = mergeList(prev, bnk);
+          localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const mbr = cloudData.trust_members || cloudData.members;
+      if (mbr) {
+        setMembers(prev => {
+          const merged = mergeList(prev, mbr);
+          localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const ast = cloudData.trust_assets || cloudData.assets;
+      if (ast) {
+        setAssets(prev => {
+          const merged = mergeList(prev, ast);
+          localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const docList = cloudData.trust_documents || cloudData.documents;
+      if (docList) {
+        setDocuments(prev => {
+          const merged = mergeList(prev, docList);
+          localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const thr = cloudData.trust_tharavs || cloudData.tharavs;
+      if (thr) {
+        setTharavs(prev => {
+          const merged = mergeList(prev, thr);
+          localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const setts = cloudData.trust_settings || cloudData.trustSettings;
+      if (setts) { setTrustSettings(setts); localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(setts)); }
+      const rcn = cloudData.trust_reconciliation || cloudData.reconciliationList;
+      if (rcn) {
+        setReconciliationList(prev => {
+          const merged = mergeList(prev, rcn);
+          localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const inv = cloudData.trust_inventory_items || cloudData.inventoryItems;
+      if (inv) {
+        setInventoryItems(prev => {
+          const merged = mergeList(prev, inv);
+          localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const pb = cloudData.trust_purchase_bills || cloudData.purchaseBills;
+      if (pb) {
+        setPurchaseBills(prev => {
+          const merged = mergeList(prev, pb);
+          localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const sb = cloudData.trust_sales_bills || cloudData.salesBills;
+      if (sb) {
+        setSalesBills(prev => {
+          const merged = mergeList(prev, sb);
+          localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const sp = cloudData.trust_share_purchases || cloudData.sharePurchases;
+      if (sp) {
+        setSharePurchases(prev => {
+          const merged = mergeList(prev, sp);
+          localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(merged));
+          return merged;
+        });
+      }
+      const la = cloudData.trust_loan_applications || cloudData.loanApplications;
+      if (la) {
+        setLoanApplications(prev => {
+          const merged = mergeList(prev, la);
+          localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(merged));
+          return merged;
+        });
+      }
       const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastFirebaseSyncTime(nowTime);
     });
@@ -1907,9 +2145,9 @@ export default function App() {
     if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
       const targetTrust = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
       if (key === 'trust_licenses') {
-        saveSystemMasterToFirebase(data, appUsers);
+        saveSystemMasterToFirebase(data, undefined);
       } else if (key === 'trust_users') {
-        saveSystemMasterToFirebase(licenses, data);
+        saveSystemMasterToFirebase(undefined, data);
       } else {
         saveTrustDatasetToFirebase(targetTrust, key, data);
       }
@@ -2003,8 +2241,8 @@ export default function App() {
         const uPass = (u.passwordHash || '').trim();
         const matchesCreds = uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
         if (!matchesCreds) return false;
-        if (loginSelectedTrust && loginSelectedTrust !== 'all') {
-          return (u.trustNameGuj || '').trim() === loginSelectedTrust.trim();
+        if (loginSelectedTrust && loginSelectedTrust !== 'all' && loginSelectedTrust.trim() !== '') {
+          return (u.trustNameGuj || '').trim().toLowerCase() === loginSelectedTrust.trim().toLowerCase();
         }
         return true;
       });
@@ -2018,8 +2256,25 @@ export default function App() {
         });
       }
 
+      // If still not found, check default users
       if (!matchedUser) {
-        setLoginError('અમાન્ય વપરાશકર્તા નામ અથવા પાસવર્ડ. કૃપા કરીને સાચી વિગતો દાખલ કરો.');
+        const defaultMatch = DEFAULT_USERS.find(u => {
+          const uName = (u.username || '').trim().toLowerCase();
+          const uPass = (u.passwordHash || '').trim();
+          const matchesCreds = uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
+          if (!matchesCreds) return false;
+          if (loginSelectedTrust && loginSelectedTrust !== 'all' && loginSelectedTrust.trim() !== '') {
+            return (u.trustNameGuj || '').trim().toLowerCase() === loginSelectedTrust.trim().toLowerCase();
+          }
+          return true;
+        });
+        if (defaultMatch) {
+          matchedUser = defaultMatch;
+        }
+      }
+
+      if (!matchedUser) {
+        setLoginError('અમાન્ય યુઝરનેમ અથવા પાસવર્ડ. કૃપા કરીને સાચી વિગતો દાખલ કરો.');
         return;
       }
 
@@ -2048,9 +2303,16 @@ export default function App() {
       setIsLoggedIn(true);
       setActiveTab('control_panel');
 
+      if (userTrustName) {
+        setTrustSettings(prev => ({
+          ...prev,
+          trustNameGuj: userTrustName
+        }));
+      }
+
       // Fetch cloud data for this trust immediately
       if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
-        fetchFromFirebaseCloud(true);
+        fetchFromFirebaseCloud(true, userTrustName || undefined);
       }
 
       // Log audit
@@ -2079,7 +2341,7 @@ export default function App() {
     setCurrentSessionUser(null);
     setLoginUsername('');
     setLoginPassword('');
-    setActiveTab('control_panel');
+    setActiveTab('dashboard');
   };
 
   const handleSuperAdminLogout = () => {
@@ -2089,7 +2351,7 @@ export default function App() {
     setCurrentSessionUser(null);
     setLoginUsername('');
     setLoginPassword('');
-    setActiveTab('control_panel');
+    setActiveTab('dashboard');
   };
 
   // Theme Changer
@@ -2102,14 +2364,22 @@ export default function App() {
   // --- ACTIONS HANDLERS ---
 
   // Income Receipt Handlers
-  const handleAddReceipt = (newR: Omit<IncomeReceipt, 'id' | 'receiptNumber'>) => {
-    const seq = receipts.length + 1;
-    const padSeq = String(seq).padStart(4, '0');
-    const receiptNumber = `TR-2026-${padSeq}`;
+  const handleAddReceipt = (newR: Omit<IncomeReceipt, 'id' | 'receiptNumber'> & { receiptNumber?: string; customDonorPhone?: string; customDonorPan?: string }) => {
+    let receiptNumber = newR.receiptNumber;
+    if (!receiptNumber) {
+      const highestNum = receipts.reduce((max, r) => {
+        const match = r.receiptNumber?.match(/\d+$/);
+        const num = match ? parseInt(match[0], 10) : 0;
+        return Math.max(max, isNaN(num) ? 0 : num);
+      }, 0);
+      const seq = Math.max(highestNum + 1, receipts.length + 1);
+      const padSeq = String(seq).padStart(4, '0');
+      receiptNumber = `TR-2026-${padSeq}`;
+    }
 
     const receipt: IncomeReceipt = {
       ...newR,
-      id: 'rcp-' + Date.now(),
+      id: 'rcp-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       receiptNumber
     };
 
@@ -2117,11 +2387,31 @@ export default function App() {
     setReceipts(updatedReceipts);
     syncStorage('trust_receipts', updatedReceipts);
 
+    // If new donor name provided and donor doesn't exist, auto-register in donors
+    if (newR.donorNameGuj && newR.donorNameGuj !== 'અજ્ઞાત દાતા' && newR.donorNameGuj !== 'બેંક વ્યાજ / અન્ય જમા (Bank Interest)') {
+      const donorExists = donors.some(d => d.nameGuj.trim().toLowerCase() === newR.donorNameGuj.trim().toLowerCase());
+      if (!donorExists) {
+        const newDonor: Donor = {
+          id: (newR.donorId && !newR.donorId.startsWith('new')) ? newR.donorId : ('dnr-' + Date.now() + '-' + Math.floor(Math.random() * 1000)),
+          nameGuj: newR.donorNameGuj,
+          phone: newR.customDonorPhone || '',
+          panNumber: newR.customDonorPan || '',
+          aadharNumber: '',
+          email: '',
+          addressGuj: 'સ્થાનિક',
+          createdAt: new Date().toISOString()
+        };
+        const updatedDonors = [newDonor, ...donors];
+        setDonors(updatedDonors);
+        syncStorage('trust_donors', updatedDonors);
+      }
+    }
+
     // If it's bank payment, update bank balance
     if (newR.paymentMode !== 'રોકડ (Cash)' && newR.bankId) {
       const updatedBanks = banks.map(b => {
         if (b.id === newR.bankId) {
-          return { ...b, balance: b.balance + newR.amount };
+          return { ...b, balance: (b.balance || 0) + newR.amount };
         }
         return b;
       });
@@ -2189,14 +2479,22 @@ export default function App() {
   };
 
   // Expense Voucher Handlers
-  const handleAddVoucher = (newV: Omit<ExpenseVoucher, 'id' | 'voucherNumber'>) => {
-    const seq = vouchers.length + 1;
-    const padSeq = String(seq).padStart(4, '0');
-    const voucherNumber = `EX-2026-${padSeq}`;
+  const handleAddVoucher = (newV: Omit<ExpenseVoucher, 'id' | 'voucherNumber'> & { voucherNumber?: string }) => {
+    let voucherNumber = newV.voucherNumber;
+    if (!voucherNumber) {
+      const highestNum = vouchers.reduce((max, v) => {
+        const match = v.voucherNumber?.match(/\d+$/);
+        const num = match ? parseInt(match[0], 10) : 0;
+        return Math.max(max, isNaN(num) ? 0 : num);
+      }, 0);
+      const seq = Math.max(highestNum + 1, vouchers.length + 1);
+      const padSeq = String(seq).padStart(4, '0');
+      voucherNumber = `EX-2026-${padSeq}`;
+    }
 
     const voucher: ExpenseVoucher = {
       ...newV,
-      id: 'vch-' + Date.now(),
+      id: 'vch-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       voucherNumber
     };
 
@@ -2208,7 +2506,7 @@ export default function App() {
     if (newV.paymentMode !== 'રોકડ (Cash)' && newV.bankId) {
       const updatedBanks = banks.map(b => {
         if (b.id === newV.bankId) {
-          return { ...b, balance: b.balance - newV.amount };
+          return { ...b, balance: (b.balance || 0) - newV.amount };
         }
         return b;
       });
@@ -2750,7 +3048,7 @@ export default function App() {
     });
     const updated = [user, ...filteredList];
     setAppUsers(updated);
-    localStorage.setItem('trust_users', JSON.stringify(updated));
+    syncStorage('trust_users', updated);
 
     addAuditLog(
       'નવો વપરાશકર્તા ઉમેર્યો',
@@ -2763,7 +3061,7 @@ export default function App() {
     const currentUsersList = appUsers;
     const updated = currentUsersList.map(u => u.id === updatedUser.id ? updatedUser : u);
     setAppUsers(updated);
-    localStorage.setItem('trust_users', JSON.stringify(updated));
+    syncStorage('trust_users', updated);
 
     // Update current session user state if edited user is currently logged in
     if (currentSessionUser && currentSessionUser.id === updatedUser.id) {
@@ -2784,7 +3082,7 @@ export default function App() {
 
     const updated = currentUsersList.filter(u => u.id !== id);
     setAppUsers(updated);
-    localStorage.setItem('trust_users', JSON.stringify(updated));
+    syncStorage('trust_users', updated);
 
     addAuditLog(
       'વપરાશકર્તા રદ કરવામાં આવ્યો',
@@ -2797,24 +3095,28 @@ export default function App() {
   const handleMasterReset = (adminUsernameInput: string, adminPasswordInput: string): boolean => {
     const cleanUsername = adminUsernameInput.trim().toLowerCase();
 
-    // Validate matching admin user from appUsers or DEFAULT_USERS
-    const matchedAdmin = appUsers.find(
-      u => u.username.toLowerCase() === cleanUsername && u.role === 'Admin' && u.passwordHash === adminPasswordInput
-    ) || DEFAULT_USERS.find(
-      u => u.username.toLowerCase() === cleanUsername && u.role === 'Admin' && u.passwordHash === adminPasswordInput
+    // Check SuperAdmin credentials or registered Admin user
+    const isSuperAdmin = (cleanUsername === 'patelmunaf90@gmail.com' || cleanUsername === 'superadmin' || cleanUsername === 'patelmunaf90') &&
+      (adminPasswordInput === 'munaf786' || adminPasswordInput === 'admin123' || adminPasswordInput === 'superadmin');
+
+    const matchedAdmin = isSuperAdmin ? { username: 'SuperAdmin', nameGuj: 'સુપર એડમિન' } : (
+      appUsers.find(
+        u => u.username.toLowerCase() === cleanUsername && (u.role === 'Admin' || u.role === 'Administrator') && u.passwordHash === adminPasswordInput
+      ) || DEFAULT_USERS.find(
+        u => u.username.toLowerCase() === cleanUsername && u.role === 'Admin' && u.passwordHash === adminPasswordInput
+      )
     );
 
     if (!matchedAdmin) {
       return false;
     }
 
-    // Perform complete factory master reset
+    // 1. Perform complete factory master reset across ALL React state variables
     setReceipts([]);
     setVouchers([]);
     setDonors([]);
     setMembers([]);
-    const defaultBanks: BankAccount[] = [];
-    setBanks(defaultBanks);
+    setBanks([]);
     setAssets([]);
     setDocuments([]);
     setTharavs([]);
@@ -2822,9 +3124,10 @@ export default function App() {
     setInventoryItems([]);
     setPurchaseBills([]);
     setSalesBills([]);
-
-    // Users directory (appUsers) is preserved and not deleted during master reset per user request
-    // We keep all registered users exactly as they are.
+    setSharePurchases([]);
+    setLoanApplications([]);
+    setAuditLogs([]);
+    setGlobalResults([]);
 
     const updatedSettings: TrustSettings = {
       ...trustSettings,
@@ -2836,25 +3139,110 @@ export default function App() {
     const scopeSuffix = isCustom ? `_${currentSessionUser.username.toLowerCase()}` : '';
     const getScopedKeyLocal = (key: string) => isCustom ? `${key}${scopeSuffix}` : key;
 
-    localStorage.setItem(getScopedKeyLocal('trust_receipts'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_vouchers'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_donors'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_members'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_banks'), JSON.stringify(defaultBanks));
-    localStorage.setItem(getScopedKeyLocal('trust_assets'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_documents'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_tharavs'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_reconciliation'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_settings'), JSON.stringify(updatedSettings));
-    localStorage.setItem(getScopedKeyLocal('trust_inventory_items'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_purchase_bills'), JSON.stringify([]));
-    localStorage.setItem(getScopedKeyLocal('trust_sales_bills'), JSON.stringify([]));
+    // 2. Clear all local storage keys for all dataset tables (both unscoped and scoped)
+    const tablesToBlank = [
+      'trust_receipts',
+      'trust_vouchers',
+      'trust_donors',
+      'trust_members',
+      'trust_banks',
+      'trust_assets',
+      'trust_documents',
+      'trust_tharavs',
+      'trust_reconciliation',
+      'trust_inventory_items',
+      'trust_purchase_bills',
+      'trust_sales_bills',
+      'trust_share_purchases',
+      'trust_loan_applications',
+      'trust_audit_logs',
+      'trust_aavak_jaavak_register_v1'
+    ];
 
-    addAuditLog(
-      'માસ્ટર સિસ્ટમ ફેક્ટરી રિસેટ',
-      'સેટિંગ્સ (Master Reset)',
-      `એડમિન ${matchedAdmin.username} (${matchedAdmin.nameGuj}) ના મંજૂરીપત્રથી સંપૂર્ણ સિસ્ટમ ડેટા ફેક્ટરી રિસેટ કરવામાં આવ્યો.`
-    );
+    tablesToBlank.forEach(tableKey => {
+      localStorage.setItem(tableKey, JSON.stringify([]));
+      localStorage.setItem(getScopedKeyLocal(tableKey), JSON.stringify([]));
+    });
+
+    // Also scan all localStorage keys to remove any cached entries from any user scope
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k) {
+          for (const prefix of tablesToBlank) {
+            if (k.startsWith(prefix)) {
+              localStorage.setItem(k, JSON.stringify([]));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Storage cleanup notice:", e);
+    }
+
+    localStorage.setItem('trust_settings', JSON.stringify(updatedSettings));
+    localStorage.setItem(getScopedKeyLocal('trust_settings'), JSON.stringify(updatedSettings));
+    localStorage.setItem('active_trust_settings', JSON.stringify(updatedSettings));
+
+    // 3. Immediately wipe data in Google Firebase Firestore so cloud is 100% blank
+    const targetTrust = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
+    const blankPayload = {
+      donors: [],
+      receipts: [],
+      vouchers: [],
+      banks: [],
+      members: [],
+      assets: [],
+      documents: [],
+      tharavs: [],
+      reconciliationList: [],
+      inventoryItems: [],
+      purchaseBills: [],
+      salesBills: [],
+      sharePurchases: [],
+      loanApplications: [],
+      auditLogs: [],
+      trustSettings: updatedSettings,
+      last_cloud_sync: new Date().toISOString(),
+      last_updated: new Date().toISOString(),
+      trust_name: targetTrust
+    };
+
+    if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
+      saveFullTrustToFirebase(targetTrust, blankPayload).then(() => {
+        console.log(`[Firebase Cloud] Trust data for [${targetTrust}] completely wiped.`);
+      }).catch(err => {
+        console.error("Firebase wipe error:", err);
+      });
+    }
+
+    // 4. Also wipe linked PC SQLite / JSON file if connected
+    if (fileHandle && filePermissionGranted) {
+      fileHandle.createWritable().then(async (writable: any) => {
+        await writable.write(JSON.stringify({
+          ...blankPayload,
+          trust_donors: [],
+          trust_receipts: [],
+          trust_vouchers: [],
+          trust_banks: [],
+          trust_members: [],
+          trust_assets: [],
+          trust_documents: [],
+          trust_tharavs: [],
+          trust_audit_logs: [],
+          trust_licenses: licenses,
+          trust_settings: updatedSettings,
+          trust_reconciliation: [],
+          trust_inventory_items: [],
+          trust_purchase_bills: [],
+          trust_sales_bills: [],
+          trust_share_purchases: [],
+          trust_loan_applications: [],
+          last_saved_at: new Date().toISOString()
+        }, null, 2));
+        await writable.close();
+      }).catch((err: any) => console.warn("Linked file reset warning:", err));
+    }
 
     return true;
   };
@@ -3210,7 +3598,24 @@ export default function App() {
 
       const updatedUsers = [...rolesToCreate, ...filteredUsersList];
       setAppUsers(updatedUsers);
-      localStorage.setItem('trust_users', JSON.stringify(updatedUsers));
+      syncStorage('trust_users', updatedUsers);
+
+      // Create & sync initial trust settings for new trust to cloud
+      const newTrustSettings: TrustSettings = {
+        ...DEFAULT_TRUST_SETTINGS,
+        trustNameGuj: newLic.trustNameGuj,
+        trustNameEng: '',
+        regNoGuj: '',
+        addressGuj: '',
+        phone: newLic.registeredPhone || '',
+        email: newLic.registeredEmail || '',
+        panNumber: '',
+        tanNumber: '',
+        section12ANo: '',
+        section80GNo: '',
+        openingCashBalance: 0
+      };
+      saveTrustDatasetToFirebase(newLic.trustNameGuj, 'trust_settings', newTrustSettings);
 
       // Auto set form fields for immediate login testing
       setLoginSelectedTrust(newLic.trustNameGuj);
@@ -3263,15 +3668,19 @@ export default function App() {
     // 1. Remove from licenses list
     const updatedLicenses = licenses.filter(l => l.id !== id);
     setLicenses(updatedLicenses);
-    syncStorage('trust_licenses', updatedLicenses);
+    localStorage.setItem('trust_licenses', JSON.stringify(updatedLicenses));
 
+    let updatedUsers = appUsers;
     if (targetTrustName) {
       // 2. Remove all users belonging to this deleted trust
-      const updatedUsers = appUsers.filter(
-        u => u.trustNameGuj !== targetTrustName
+      updatedUsers = appUsers.filter(
+        u => (u.trustNameGuj || '').trim() !== targetTrustName.trim()
       );
       setAppUsers(updatedUsers);
-      syncStorage('trust_users', updatedUsers);
+      localStorage.setItem('trust_users', JSON.stringify(updatedUsers));
+
+      // Delete entirely from Firebase Cloud
+      deleteTrustFromFirebase(targetTrustName).catch(e => console.warn(e));
 
       // 3. Purge all records associated with targetTrustName or current active trust
       const isCurrentActiveTrust =
@@ -3342,6 +3751,9 @@ export default function App() {
         });
       }
     }
+
+    // Direct save system master (both licenses and users) to Firebase
+    saveSystemMasterToFirebase(updatedLicenses, updatedUsers);
 
     if (updatedLicenses.length === 0) {
       localStorage.removeItem('trust_activated_name');
@@ -3937,25 +4349,33 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Main Panel Frame (Sidebar removed, Control Panel available on Dashboard) */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* App Body with Top Horizontal Control Panel Navigation */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         
         {/* Main Header Strip */}
-        <header className={`sticky top-0 z-40 backdrop-blur-md border-b p-4 flex justify-between items-center ${headerBg}`}>
+        <header className={`sticky top-0 z-40 backdrop-blur-md border-b p-2.5 px-4 flex justify-between items-center ${headerBg}`}>
           
-          {/* Header search bar / Trust title */}
-          <div className="flex items-center gap-3">
+          {/* Header trust title & logo & Control Panel button */}
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => setActiveTab('control_panel')}
-              className="p-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer shrink-0"
+              className="p-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer shrink-0"
               title="કંટ્રોલ પેનલ"
             >
               <LayoutDashboard className="w-4 h-4" />
-              <span className="hidden sm:inline">કંટ્રોલ પેનલ</span>
+              <span>🎛️ કંટ્રોલ પેનલ</span>
             </button>
-            <div className="hidden md:flex items-center gap-2">
-              <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">ચેરિટેબલ ટ્રસ્ટ:</span>
-              <h1 className="text-xs font-black truncate max-w-[200px]" title={trustSettings.trustNameGuj}>{trustSettings.trustNameGuj}</h1>
+
+            <div className="hidden sm:flex items-center gap-2.5 cursor-pointer" onClick={() => setActiveTab('control_panel')} title="કંટ્રોલ પેનલ પર જાઓ">
+              <div className="p-2 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center">
+                <Landmark className="w-4 h-4" />
+              </div>
+              <div>
+                <h1 className="text-xs md:text-sm font-black truncate max-w-[180px] md:max-w-[260px] text-slate-800 dark:text-white" title={trustSettings.trustNameGuj}>
+                  {trustSettings.trustNameGuj || 'ઇખર મસ્જિદ ટ્રસ્ટ , ઇખર'}
+                </h1>
+                <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">ચેરિટેબલ ટ્રસ્ટ અકાઉન્ટિંગ</p>
+              </div>
             </div>
           </div>
 
@@ -4316,29 +4736,6 @@ export default function App() {
 
         {/* Core Content Container view switching with fade animations */}
         <main className="flex-1 p-6 overflow-y-auto w-full">
-          {/* Universal back to Control Panel banner for active sub-modules */}
-          {activeTab !== 'control_panel' && (
-            <div className="mb-6 flex flex-wrap items-center gap-4 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
-              <div className="flex items-center gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('control_panel')}
-                  className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 dark:bg-emerald-800 dark:hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>મુખ્ય કંટ્રોલ પેનલ પર પાછા જાઓ (Back to Control Panel)</span>
-                </button>
-                <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  <span className="hidden sm:inline">ચાલુ મોડ:</span>
-                  <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-lg text-[11px] font-bold border border-emerald-200/50 dark:border-emerald-800/40">
-                    {getTabTitleGuj(activeTab)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -4347,9 +4744,8 @@ export default function App() {
               exit={{ opacity: 0, x: 5 }}
               transition={{ duration: 0.15 }}
             >
-              {activeTab === 'control_panel' && (
+              {(activeTab === 'dashboard' || activeTab === 'control_panel') && (
                 <Dashboard
-                  mode="control_panel"
                   receipts={receipts}
                   vouchers={vouchers}
                   donors={donors}
@@ -4361,23 +4757,7 @@ export default function App() {
                   onSelectTab={setActiveTab}
                   isSuperAdminAuthenticated={isSuperAdminAuthenticated}
                   onLogout={handleLogout}
-                />
-              )}
-
-              {activeTab === 'dashboard' && (
-                <Dashboard
-                  mode="analytics"
-                  receipts={receipts}
-                  vouchers={vouchers}
-                  donors={donors}
-                  banks={banks}
-                  currentUser={{ nameGuj: currentSessionUser?.nameGuj || '', roleGuj: currentSessionUser?.roleGuj || '' }}
-                  darkMode={darkMode}
-                  trustSettings={trustSettings}
-                  reconciliationList={reconciliationList}
-                  onSelectTab={setActiveTab}
-                  isSuperAdminAuthenticated={isSuperAdminAuthenticated}
-                  onLogout={handleLogout}
+                  mode={activeTab === 'control_panel' ? 'control_panel' : 'dashboard'}
                 />
               )}
 
@@ -4441,6 +4821,8 @@ export default function App() {
                   trustSettings={trustSettings}
                   reconciliationList={reconciliationList}
                   onEditBankAccount={handleEditBankAccount}
+                  onDeleteReceipt={handleDeleteReceipt}
+                  onDeleteVoucher={handleDeleteVoucher}
                   onUpdateTrustSettings={(updatedSettings) => {
                     setTrustSettings(updatedSettings);
                     syncStorage('trust_settings', updatedSettings);

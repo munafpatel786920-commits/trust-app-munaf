@@ -1,0 +1,187 @@
+          {/* Schedule VIII Balance Sheet T-Ledger Grid */}
+          <div className={`border ${cardBg} rounded-2xl overflow-hidden shadow-sm`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 text-xs">
+              
+              {/* LIABILITIES SIDE (ફંડો અને જવાબદારીઓ) */}
+              <div className="p-5 space-y-4">
+                <div className="flex justify-between items-center border-b pb-2 bg-indigo-50/50 dark:bg-indigo-950/20 p-2 rounded-lg">
+                  <h3 className="font-black text-sm text-indigo-700 dark:text-indigo-400">
+                    ફંડો અને જવાબદારીઓ (FUNDS & LIABILITIES)
+                  </h3>
+                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded">જમા બાજુ</span>
+                </div>
+
+                <div className="space-y-3.5">
+                  {/* Trust Capital Fund Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૧. ટ્રસ્ટ મૂડી ભંડોળ (Trust Capital Fund / Corpus)
+                    </span>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                      <span>પ્રારંભિક સામાન્ય ભંડોળ (Opening Capital Fund):</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {(initialTrustFund - openingStockValue).toLocaleString('en-IN')}</span>
+                    </div>
+                    {openingStockValue > 0 && (
+                      <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                        <span>ઉમેરો: શરૂઆતનો પ્રોડક્ટ સ્ટોક (Add: Opening Inventory Stock):</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {openingStockValue.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400 text-[11px]">
+                      <span>ઉમેરો: ચાલુ વર્ષનો ચોખ્ખો સંચિત વધારો (Add: Current Year Surplus):</span>
+                      <span className="font-mono font-bold">₹ {(totalIncome - totalExpense).toLocaleString('en-IN')}</span>
+                    </div>
+                    {closingStockValue - openingStockValue !== 0 && (
+                      <div className="flex justify-between text-teal-600 dark:text-teal-400 text-[11px]">
+                        <span>ઉમેરો/બાદ: સ્ટોક મૂલ્યાંકન સુધારો (Stock Valuation Adjustment):</span>
+                        <span className="font-mono font-bold">₹ {(closingStockValue - openingStockValue).toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+
+                    {/* Explicit Sales and Purchase Details inside Capital Block */}
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-750 space-y-1">
+                      <span className="font-bold text-[10px] text-indigo-700 dark:text-indigo-400 block uppercase tracking-wider">ચાલુ વર્ષના પ્રોડક્ટ વેપાર વ્યવહારો (Product Trading Details):</span>
+                      <div className="flex justify-between text-slate-500 text-[10px]">
+                        <span>દાન અને સામાન્ય ટ્રસ્ટ આવકો:</span>
+                        <span className="font-mono">₹ {(totalIncome - totalSalesAmount).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400 text-[10px] font-medium">
+                        <span>(+) પ્રોડક્ટ વેચાણ આવક (Product Sales Revenue):</span>
+                        <span className="font-mono">₹ {totalSalesAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 text-[10px]">
+                        <span>સામાન્ય વહીવટી ટ્રસ્ટ ખર્ચાઓ:</span>
+                        <span className="font-mono">₹ {(totalExpense - totalPurchasesAmount).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-rose-700 dark:text-rose-400 text-[10px] font-medium">
+                        <span>(-) પ્રોડક્ટ ખરીદી ખર્ચ (Product Purchases Expense):</span>
+                        <span className="font-mono">₹ {totalPurchasesAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between font-black text-slate-800 dark:text-slate-100 pt-1.5 border-t text-xs">
+                      <span>કુલ મૂડી ભંડોળ (Total Capital Fund Balance):</span>
+                      <span className="font-mono text-indigo-600 dark:text-indigo-400">₹ {totalLiabilities.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+
+                  {/* Earmarked Funds Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૨. અનામત અને વિશિષ્ટ ફંડો (Earmarked & Reserve Funds)
+                    </span>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                      <span>બિલ્ડિંગ અને મિલકત વિકાસ ફંડ (Building Fund):</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ ૦</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                      <span>શિક્ષણ અને રાહત નિધિ (Relief Fund):</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ ૦</span>
+                    </div>
+                  </div>
+
+                  {/* Liabilities & Provisions Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૩. ચાલુ દેવાં અને પ્રોવિઝન (Current Liabilities)
+                    </span>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                      <span>ઓડિટ ફી પ્રોવિઝન (Audit Fee Payable):</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ ૦</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Liabilities Box */}
+                <div className="p-3.5 bg-slate-100 dark:bg-slate-800 rounded-xl flex justify-between items-center font-black text-sm text-slate-800 dark:text-white mt-4 border border-slate-300 dark:border-slate-700">
+                  <span>કુલ ફંડો અને દેવાં સરવાળો (Total Liabilities)</span>
+                  <span className="font-mono text-indigo-600 dark:text-indigo-400 text-base">
+                    ₹ {totalLiabilities.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              {/* ASSETS SIDE (મિલકતો અને અસ્કયામતો) */}
+              <div className="p-5 space-y-4">
+                <div className="flex justify-between items-center border-b pb-2 bg-emerald-50/50 dark:bg-emerald-950/20 p-2 rounded-lg">
+                  <h3 className="font-black text-sm text-emerald-700 dark:text-emerald-400">
+                    મિલકતો અને અસ્કયામતો (PROPERTIES & ASSETS)
+                  </h3>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded">ઉધાર બાજુ</span>
+                </div>
+
+                <div className="space-y-3.5">
+                  {/* Fixed Assets Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૧. સ્થાવર અને જંગમ અસ્કયામતો (Fixed Properties & Assets)
+                    </span>
+                    {assets.length > 0 ? (
+                      assets.map((a, idx) => (
+                        <div key={idx} className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                          <span>{a.nameGuj} ({a.typeGuj}):</span>
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {a.currentValue.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex justify-between text-slate-500 text-[11px]">
+                        <span>ટ્રસ્ટ સ્થાયી મિલકતો (મકાન/વાહનો/ફર્નિચર):</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {totalAssetVal.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bank Accounts Balances Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૨. બેંક એકાઉન્ટ્સમાં આખર સિલક (Bank Balances as per Passbook)
+                    </span>
+                    {banks.map((b, idx) => (
+                      <div key={idx} className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                        <span>{b.bankNameGuj} ({b.accountNumber}):</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {b.balance.toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-bold text-slate-800 dark:text-slate-200 pt-1 border-t text-[11px]">
+                      <span>કુલ બેંક બેલેન્સ (Total Bank Balances):</span>
+                      <span className="font-mono text-emerald-600">₹ {totalBankBalance.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+
+                  {/* Cash in Hand Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૩. તિજોરી હાથ પર રોકડ સિલક (Cash Balance in Hand)
+                    </span>
+                    <div className="flex justify-between text-slate-800 dark:text-slate-200 font-bold text-[11px]">
+                      <span>આજની આખર રોકડ સિલક (Closing Cash Balance):</span>
+                      <span className="font-mono text-emerald-600 font-black">₹ {finalCash.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+
+                  {/* Inventory / Closing Stock Asset Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૪. પ્રોડક્ટ માલસામાન આખર સ્ટોક (Closing Inventory Stock Asset)
+                    </span>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                      <span>આખર સ્ટોક ભૌતિક કિંમત (Closing Stock Value):</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {closingStockValue.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 block">
+                      સ્ટોક કિંમત ખરીદી મૂલ્ય અનુસાર ગણતરી કરવામાં આવી છે.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Total Assets Box */}
+                <div className="p-3.5 bg-slate-100 dark:bg-slate-800 rounded-xl flex justify-between items-center font-black text-sm text-slate-800 dark:text-white mt-4 border border-slate-300 dark:border-slate-700">
+                  <span>કુલ મિલકતો અને સિલક સરવાળો (Total Assets)</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 text-base">
+                    ₹ {totalAssets.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+

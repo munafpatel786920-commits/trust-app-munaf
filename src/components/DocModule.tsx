@@ -27,93 +27,6 @@ export interface AavakJaavakEntry {
   remarksGuj?: string;
 }
 
-const INITIAL_AAVAK_JAAVAK_DATA: AavakJaavakEntry[] = [
-  {
-    id: 'aj-1',
-    type: 'આવક (Inward)',
-    regNo: 'AVK-2026-001',
-    date: '2026-04-10',
-    partyNameGuj: 'સહકારી મંડળીઓ રજીસ્ટ્રાર કચેરી, અમદાવાદ',
-    partyAddressGuj: 'બ્લોક-બી, બહુમાળી ભવન, અમદાવાદ',
-    subjectGuj: 'નાણાકીય વર્ષ ૨૦૨૫-૨૬ ના ઓડિટ રિપોર્ટ સબમિટ કરવા અંગેનો પરિપત્ર',
-    refNo: 'REG/AUDIT/2026/7821',
-    dispatchMode: 'રજીસ્ટર્ડ એડી',
-    statusGuj: 'પૂર્ણ / ફાઈલ કરેલ',
-    stampExpense: 0,
-    remarksGuj: 'ઓડિટર દ્વારા રિપોર્ટ તૈયાર કરી જમા કરાવાયો.'
-  },
-  {
-    id: 'aj-2',
-    type: 'જાવક (Outward)',
-    regNo: 'JVK-2026-001',
-    date: '2026-04-25',
-    partyNameGuj: 'ચાર્ટર્ડ એકાઉન્ટન્ટ એમ. કે. શાહ એન્ડ કંપની',
-    partyAddressGuj: 'સી.જી. રોડ, નવરંગપુરા, અમદાવાદ',
-    subjectGuj: 'ટ્રસ્ટના વાર્ષિક હિસાબ તપાસણી અર્થે પાવતી અને વાઉચર્સ બાઈન્ડિંગ મોકલવા અંગે',
-    refNo: 'TRUST/AUD/2026/01',
-    dispatchMode: 'રૂબરૂ (Hand Delivery)',
-    statusGuj: 'મોકલેલ',
-    stampExpense: 0,
-    remarksGuj: 'એકાઉન્ટન્ટે પહોંચ સ્વીકારી નોંધ કરી.'
-  },
-  {
-    id: 'aj-3',
-    type: 'આવક (Inward)',
-    regNo: 'AVK-2026-002',
-    date: '2026-05-15',
-    partyNameGuj: 'આવકવેરા વિભાગ (Income Tax Dept), ગાંધીનગર',
-    partyAddressGuj: 'આયકર ભવન, સેક્ટર-૧૬, ગાંધીનગર',
-    subjectGuj: '૧૨A અને ૮૦G કલમ હેઠળ કરમુક્તિ આજીવન નવીનીકરણ મંજૂરી પ્રમાણપત્ર',
-    refNo: 'IT/12A/80G/REN/9920',
-    dispatchMode: 'સ્પીડ પોસ્ટ',
-    statusGuj: 'મંજૂર / સ્વીકૃત',
-    stampExpense: 0,
-    remarksGuj: 'સુરક્ષિત દસ્તાવેજ ફાઈલમાં કાયમી સંગ્રહિત.'
-  },
-  {
-    id: 'aj-4',
-    type: 'જાવક (Outward)',
-    regNo: 'JVK-2026-002',
-    date: '2026-05-28',
-    partyNameGuj: 'ચેરિટી કમિશનરશ્રીની કચેરી, ગુજરાત રાજ્ય',
-    partyAddressGuj: 'લાલ દરવાજા, અમદાવાદ',
-    subjectGuj: 'ટ્રસ્ટની વાર્ષિક સામાન્ય સભા (AGM) ની કાર્યવાહી નોંધ અને ઠરાવોની નકલ સબમિટ કરવા બાબત',
-    refNo: 'TRUST/CHARITY/CR/04',
-    dispatchMode: 'સ્પીડ પોસ્ટ',
-    statusGuj: 'મોકલેલ',
-    stampExpense: 45,
-    remarksGuj: 'સ્પીડ પોસ્ટ રસીદ નં. IN8823901IN ચિહ્નિત.'
-  },
-  {
-    id: 'aj-5',
-    type: 'આવક (Inward)',
-    regNo: 'AVK-2026-003',
-    date: '2026-06-20',
-    partyNameGuj: 'સ્ટેટ બેંક ઓફ ઈન્ડિયા, મુખ્ય શાખા',
-    partyAddressGuj: 'આશ્રમ રોડ, અમદાવાદ',
-    subjectGuj: 'સભાસદ પાક ધિરાણ લોન યોજના વ્યાજ સહાય પરિપત્રક ૨૦૨૬-૨૭',
-    refNo: 'SBI/AGRI/LOAN/2026/102',
-    dispatchMode: 'ઈ-મેઈલ',
-    statusGuj: 'ચાલુ / પ્રક્રિયા હેઠળ',
-    stampExpense: 0,
-    remarksGuj: 'સભાસદ લોન કમિટી સમક્ષ મંજૂરી અર્થે મૂકેલ.'
-  },
-  {
-    id: 'aj-6',
-    type: 'જાવક (Outward)',
-    regNo: 'JVK-2026-003',
-    date: '2026-07-12',
-    partyNameGuj: 'જિલ્લા મધ્યસ્થ સહકારી બેંક લિ. (DCCB)',
-    partyAddressGuj: 'સ્ટેશન રોડ, મેહસાણા',
-    subjectGuj: 'નવા સભાસદોના બેંક લોન ભલામણ પત્રકો અને NOC ની પ્રમાણિત નકલો મોકલવા અંગે',
-    refNo: 'TRUST/NOC/RECOMM/88',
-    dispatchMode: 'કુરિયર',
-    statusGuj: 'મોકલેલ',
-    stampExpense: 60,
-    remarksGuj: 'પહોંચ નંબર C-99120.'
-  }
-];
-
 interface DocModuleProps {
   documents: DocumentMeta[];
   onUploadDocument: (doc: Omit<DocumentMeta, 'id' | 'uploadDate' | 'fileSize' | 'fileType'> & Partial<DocumentMeta>) => void;
@@ -160,8 +73,25 @@ export default function DocModule({
     } catch (e) {
       console.error('Error reading aavak_jaavak local storage', e);
     }
-    return INITIAL_AAVAK_JAAVAK_DATA;
+    return [];
   });
+
+  // Sync if documents are wiped (e.g. on master reset)
+  useEffect(() => {
+    if (documents.length === 0) {
+      const saved = localStorage.getItem('trust_aavak_jaavak_register_v1');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setAavakJaavakEntries(parsed);
+        } catch {
+          setAavakJaavakEntries([]);
+        }
+      } else {
+        setAavakJaavakEntries([]);
+      }
+    }
+  }, [documents.length]);
 
   useEffect(() => {
     try {

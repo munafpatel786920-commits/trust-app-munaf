@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   LayoutDashboard,
@@ -14,8 +14,6 @@ import {
   Calendar, 
   DollarSign, 
   Wallet, 
-  ShieldAlert, 
-  Award,
   BookOpen,
   ShieldCheck,
   Database,
@@ -23,15 +21,21 @@ import {
   FileText,
   HardDrive,
   Settings,
-  KeyRound,
+  UserCheck,
+  UserCog,
+  FileSpreadsheet,
   ChevronRight,
-  ArrowLeft,
-  LogOut
+  BarChart3,
+  PieChart,
+  ArrowUpRight,
+  ArrowDownRight,
+  PlusCircle,
+  Receipt,
+  CreditCard
 } from 'lucide-react';
 import { IncomeReceipt, ExpenseVoucher, Donor, BankAccount } from '../types';
 
 interface DashboardProps {
-  mode?: 'control_panel' | 'analytics';
   receipts: IncomeReceipt[];
   vouchers: ExpenseVoucher[];
   donors: Donor[];
@@ -43,9 +47,12 @@ interface DashboardProps {
   onSelectTab: (tab: string) => void;
   isSuperAdminAuthenticated?: boolean;
   onLogout?: () => void;
+  mode?: 'control_panel' | 'dashboard';
 }
 
-export default function Dashboard({ mode = 'control_panel', receipts, vouchers, donors, banks, currentUser, darkMode, trustSettings, reconciliationList, onSelectTab, isSuperAdminAuthenticated, onLogout }: DashboardProps) {
+export default function Dashboard({ receipts, vouchers, donors, banks, currentUser, darkMode, trustSettings, reconciliationList, onSelectTab, mode = 'dashboard' }: DashboardProps) {
+  const [chartHoverIndex, setChartHoverIndex] = useState<number | null>(null);
+
   // Calculations
   const activeReceipts = receipts.filter(r => !r.isDeleted);
   const activeVouchers = vouchers.filter(v => !v.isDeleted);
@@ -73,7 +80,7 @@ export default function Dashboard({ mode = 'control_panel', receipts, vouchers, 
   // Today's Date in YYYY-MM-DD
   const realToday = new Date().toISOString().split('T')[0];
   const hasTransactionsToday = activeReceipts.some(r => r.date === realToday) || activeVouchers.some(v => v.date === realToday);
-  const todayStr = hasTransactionsToday ? realToday : '2026-07-28'; // Fallback to simulated date for initial mock dataset
+  const todayStr = hasTransactionsToday ? realToday : '2026-07-28';
 
   const todayIncome = activeReceipts.filter(r => r.date === todayStr).reduce((sum, r) => sum + r.amount, 0);
   const todayExpense = activeVouchers.filter(v => v.date === todayStr).reduce((sum, v) => sum + v.amount, 0);
@@ -82,15 +89,45 @@ export default function Dashboard({ mode = 'control_panel', receipts, vouchers, 
   const currentMonth = todayStr.substring(0, 7);
   const monthlyIncome = activeReceipts.filter(r => r.date.startsWith(currentMonth)).reduce((sum, r) => sum + r.amount, 0);
   const monthlyExpense = activeVouchers.filter(v => v.date.startsWith(currentMonth)).reduce((sum, v) => sum + v.amount, 0);
+  const monthlyNet = monthlyIncome - monthlyExpense;
 
   // Category distribution
   const categoriesMap: { [key: string]: number } = {};
   activeReceipts.forEach(r => {
-    const key = r.category.split(' ')[0];
+    const key = r.category.split(' ')[0] || 'સામાન્ય ફંડ';
     categoriesMap[key] = (categoriesMap[key] || 0) + r.amount;
   });
 
-  const categoriesData = Object.entries(categoriesMap).map(([name, val]) => ({ name, val }));
+  const categoriesData = Object.entries(categoriesMap)
+    .map(([name, val]) => ({ name, val }))
+    .sort((a, b) => b.val - a.val);
+
+  // Monthly Trends (Past 6 Months Chart Data)
+  const getPastMonthsData = () => {
+    const monthGujNames = ['જાન્યુઆરી', 'ફેબ્રુઆરી', 'માર્ચ', 'એપ્રિલ', 'મે', 'જૂન', 'જુલાઈ', 'ઑગસ્ટ', 'સપ્ટેમ્બર', 'ઑક્ટોબર', 'નવેમ્બર', 'ડિસેમ્બર'];
+    const list = [];
+    
+    // We construct 6 months relative to todayStr or current date
+    const baseDate = new Date(todayStr.length === 10 ? todayStr : '2026-07-28');
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(baseDate.getFullYear(), baseDate.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const monthNum = String(d.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${monthNum}`;
+      
+      const label = `${monthGujNames[d.getMonth()].substring(0, 5)} ${year}`;
+      const shortLabel = monthGujNames[d.getMonth()].substring(0, 4);
+      
+      const inc = activeReceipts.filter(r => r.date.startsWith(monthKey)).reduce((sum, r) => sum + r.amount, 0);
+      const exp = activeVouchers.filter(v => v.date.startsWith(monthKey)).reduce((sum, v) => sum + v.amount, 0);
+      
+      list.push({ key: monthKey, label, shortLabel, inc, exp, net: inc - exp });
+    }
+    return list;
+  };
+
+  const monthlyTrends = getPastMonthsData();
+  const maxTrendVal = Math.max(1, ...monthlyTrends.map(m => Math.max(m.inc, m.exp)));
 
   // Recent transactions combined
   const recentTx = [
@@ -101,92 +138,14 @@ export default function Dashboard({ mode = 'control_panel', receipts, vouchers, 
   const cardBg = darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800';
   const textMuted = darkMode ? 'text-slate-400' : 'text-slate-500';
 
-  const controlPanelModules = [
-    { id: 'dashboard', title: 'ડેશબોર્ડ & એનાલિટિક્સ', desc: 'ગ્રાફ, આંકડા અને સમીક્ષા', icon: LayoutDashboard, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800' },
-    { id: 'receipts', title: 'આવક પાવતીઓ', desc: 'દાન અને સભ્ય ફાળો', icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800' },
-    { id: 'vouchers', title: 'ખર્ચ વાઉચર્સ', desc: 'ચૂકવણા અને ખર્ચ', icon: TrendingDown, color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800' },
-    { id: 'banks', title: 'બેંક ખાતાઓ', desc: 'બેંક પાસબુક અને રીકોન્સિલેશન', icon: Landmark, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800' },
-    { id: 'accounting', title: 'દ્વિ-નોંધી નામું', desc: 'પાકું સરવૈયું, ટ્રાયલ બેલેન્સ', icon: BookOpen, color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800' },
-    { id: 'donors', title: 'દાતાઓ', desc: 'દાતા મિત્રોની યાદી', icon: Users, color: 'text-violet-600 bg-violet-50 dark:bg-violet-950/40 border-violet-200 dark:border-violet-800' },
-    { id: 'members', title: 'સભાસદો', desc: 'સભાસદ સભ્યપદ નોંધો', icon: Users, color: 'text-teal-600 bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800' },
-    { id: 'trust_members', title: 'ટ્રસ્ટ હોદ્દેદારો', desc: 'પ્રમુખ, મંત્રી અને ટ્રસ્ટીઓ', icon: ShieldCheck, color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200 dark:border-cyan-800' },
-    { id: 'assets', title: 'સ્થાયી મિલકતો', desc: 'જમીન, મકાન અને ઘસારો', icon: Database, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800' },
-    { id: 'purchase_sales', title: 'ખરીદી અને વેચાણ', desc: 'ઇન્વેન્ટરી અને બિલ', icon: ShoppingBag, color: 'text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/40 border-fuchsia-200 dark:border-fuchsia-800' },
-    { id: 'documents', title: 'દસ્તાવેજો', desc: 'ટ્રસ્ટ સર્ટિફિકેટ અને ડીડ', icon: FileText, color: 'text-sky-600 bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800' },
-    { id: 'tharav', title: 'એજન્ડા & ઠરાવ', desc: 'સભા એજન્ડા અને ઠરાવ બુક', icon: BookOpen, color: 'text-orange-600 bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800' },
-    { id: 'backup', title: 'ઓટો બેકઅપ', desc: 'બેકઅપ અને ડ્રાઇવ સિંક', icon: HardDrive, color: 'text-lime-600 bg-lime-50 dark:bg-lime-950/40 border-lime-200 dark:border-lime-800' },
-    { id: 'settings', title: 'ટ્રસ્ટ સેટિંગ્સ', desc: 'નાણાકીય વર્ષ સેટિંગ્સ', icon: Settings, color: 'text-slate-600 bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700' },
-    { id: 'users', title: 'વપરાશકર્તાઓ', desc: 'યુઝર્સ અને પરવાનગીઓ', icon: ShieldCheck, color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800' },
-  ];
-
-  if (isSuperAdminAuthenticated) {
-    controlPanelModules.push({
-      id: 'superadmin',
-      title: 'સુપર એડમિન',
-      desc: 'વેન્ડર લાયસન્સ પેનલ',
-      icon: KeyRound,
-      color: 'text-rose-600 bg-rose-100 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700'
-    });
-  }
-
-  // 1. Control Panel Mode
   if (mode === 'control_panel') {
-    // Define logical groupings for a highly professional, enterprise-grade control panel
-    const groups = [
-      {
-        id: 'financial',
-        title: 'નાણાકીય વ્યવહારો અને હિસાબ (Financials & Accounts)',
-        desc: 'આવક પાવતીઓ, ખર્ચ વાઉચર્સ, એક્ટિવ બેંક ખાતાઓ અને મિલકત વ્યવસ્થાપન',
-        moduleIds: ['receipts', 'vouchers', 'banks', 'accounting', 'assets', 'purchase_sales'],
-      },
-      {
-        id: 'registry',
-        title: 'ટ્રસ્ટ વહીવટ અને રજીસ્ટર (Trust Registry & Administration)',
-        desc: 'દાતાઓ, સભાસદો, ટ્રસ્ટ બોર્ડ હોદ્દેદારો, ઠરાવ પુસ્તિકા અને દસ્તાવેજો',
-        moduleIds: ['donors', 'members', 'trust_members', 'documents', 'tharav'],
-      },
-      {
-        id: 'system',
-        title: 'સિસ્ટમ સેટઅપ અને વિશ્લેષણ (System Configuration & Analytics)',
-        desc: 'ગ્રાફિકલ ડેશબોર્ડ, ઓટો ડેટા બેકઅપ, સેટિંગ્સ અને એડમિન પરવાનગીઓ',
-        moduleIds: ['dashboard', 'users', 'backup', 'settings', 'superadmin'],
-      }
-    ];
-
-    const getModuleById = (id: string) => controlPanelModules.find(m => m.id === id);
-
-    const getModuleStat = (id: string) => {
-      switch (id) {
-        case 'receipts': return `કુલ આવક: ₹${totalIncome.toLocaleString('en-IN')}`;
-        case 'vouchers': return `કુલ ખર્ચ: ₹${totalExpense.toLocaleString('en-IN')}`;
-        case 'donors': return `${donors.length} નોંધાયેલ દાતાઓ`;
-        case 'banks': return `${banks.length} એક્ટિવ બેંક ખાતા`;
-        case 'members': return `સભાસદોની સભ્ય નોંધણી`;
-        case 'trust_members': return `ટ્રસ્ટીઓ અને હોદ્દાઓ`;
-        case 'accounting': return `દ્વિ-નોંધી વાર્ષિક હિસાબો`;
-        case 'assets': return `મિલકત અને ઘસારો રજીસ્ટર`;
-        case 'purchase_sales': return `ઇન્વેન્ટરી અને બિલિંગ`;
-        case 'documents': return `ડીડ અને સર્ટિફિકેટ્સ`;
-        case 'tharav': return `એજન્ડા અને ઠરાવ બુક`;
-        case 'backup': return `ઓટો ડ્રાઇવ બેકઅપ સિંક`;
-        case 'settings': return `વિગતો અને સામાન્ય સેટિંગ્સ`;
-        case 'users': return `યુઝર્સ અને પરમિશન`;
-        case 'dashboard': return `લાઈવ હિસાબી એનાલિટિક્સ`;
-        case 'superadmin': return `સિસ્ટમ લાયસન્સ પેનલ`;
-        default: return '';
-      }
-    };
-
     return (
       <div className="space-y-6">
-        {/* Trust Header with Logo & Name */}
-        <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-6`}>
-          <div className="absolute right-0 top-0 opacity-[0.03] dark:opacity-[0.05] translate-x-10 -translate-y-10">
-            <Award className="w-64 h-64 text-emerald-600" />
-          </div>
-          <div className="flex items-center gap-4.5 z-10">
+        {/* 1. Control Panel Header Banner */}
+        <div className={`p-6 rounded-3xl border ${cardBg} shadow-sm relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-5 bg-gradient-to-br from-white via-slate-50/50 to-emerald-50/20 dark:from-slate-900 dark:via-slate-900/90 dark:to-emerald-950/20`}>
+          <div className="flex items-center gap-4 z-10">
             {trustSettings?.logoUrl ? (
-              <div className="w-16 h-16 bg-white rounded-2xl overflow-hidden flex items-center justify-center p-1.5 border border-slate-200 dark:border-slate-800 shrink-0 shadow-sm">
+              <div className="w-16 h-16 bg-white rounded-2xl overflow-hidden flex items-center justify-center p-2 border border-slate-200/80 dark:border-slate-800 shrink-0 shadow-md">
                 <img
                   src={trustSettings.logoUrl}
                   alt="Trust Logo"
@@ -195,288 +154,660 @@ export default function Dashboard({ mode = 'control_panel', receipts, vouchers, 
                 />
               </div>
             ) : (
-              <div className="p-4 bg-emerald-600 text-white rounded-2xl shrink-0 shadow-sm">
-                <Landmark className="w-8 h-8" />
+              <div className="p-4 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white rounded-2xl shrink-0 shadow-md">
+                <LayoutDashboard className="w-8 h-8" />
               </div>
             )}
             <div>
-              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${darkMode ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-                ચેરિટેબલ ટ્રસ્ટ કંટ્રોલ પેનલ
-              </span>
-              <h2 className={`text-xl md:text-2xl font-black mt-2 leading-tight ${darkMode ? 'text-white' : 'text-slate-900'}`} title={trustSettings?.trustNameGuj}>
-                {trustSettings?.trustNameGuj || 'શ્રી સમસ્ત ટ્રસ્ટ'}
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                  darkMode ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800' : 'bg-emerald-100/80 text-emerald-800 border border-emerald-200'
+                }`}>
+                  🎛️ કંટ્રોલ પેનલ મોડ્યુલ્સ (Control Panel)
+                </span>
+              </div>
+              <h2 className={`text-xl md:text-2xl font-black mt-1 leading-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                {trustSettings?.trustNameGuj || 'ઇખર મસ્જિદ ટ્રસ્ટ , ઇખર'}
               </h2>
-              <p className={`text-xs mt-1.5 font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>સ્વાગત છે, <span className="font-bold text-emerald-600 dark:text-emerald-400">{currentUser.nameGuj}</span> ({currentUser.roleGuj})</p>
+              <p className={`text-xs mt-1 font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                સ્વાગત છે, <span className="font-bold text-emerald-600 dark:text-emerald-400">{currentUser.nameGuj}</span> ({currentUser.roleGuj})
+              </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3.5 flex-wrap md:justify-end z-10">
-            {/* Financial Year Badge */}
-            <div className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl border ${darkMode ? 'bg-slate-800/40 border-slate-700/60 text-slate-200' : 'bg-slate-50 border-slate-200/80 text-slate-700'} text-xs font-bold`}>
-              <Calendar className="w-4 h-4 text-emerald-500" />
-              <div className="flex flex-col text-left">
-                <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">ચાલુ વર્ષ</span>
-                <span className="leading-tight">૨૦૨૬-૨૭ (AY 2026-27)</span>
+          <div className="flex items-center gap-3 flex-wrap md:justify-end z-10">
+            <div className={`px-4 py-2.5 rounded-2xl border ${
+              darkMode ? 'bg-slate-800/80 border-slate-700 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            } flex items-center gap-3 text-xs font-bold shadow-sm`}>
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <Calendar className="w-4 h-4" />
               </div>
-            </div>
-
-            {/* Secure Database Connection Badge */}
-            <div className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl border ${darkMode ? 'bg-slate-800/40 border-slate-700/60 text-slate-200' : 'bg-slate-50 border-slate-200/80 text-slate-700'} text-xs font-bold`}>
-              <div className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </div>
-              <div className="flex flex-col text-left">
-                <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">સિસ્ટમ જોડાણ</span>
-                <span className="leading-tight text-emerald-600 dark:text-emerald-400 font-bold">સુરક્ષિત અને લાઈવ</span>
+              <div>
+                <span className="text-[10px] block text-slate-500 dark:text-slate-400 font-semibold leading-tight uppercase">નાણાકીય વર્ષ (Financial Year)</span>
+                <span className="text-xs md:text-sm font-black">{trustSettings?.financialYear || '૨૦૨૬-૨૭ (AY 2026-27)'}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Categorized Modules Grid */}
+        {/* Modules Sections with Unified Grid Alignment */}
         <div className="space-y-6">
-          {groups.map((group) => {
-            // Filter modules belonging to this group
-            const groupModules = group.moduleIds
-              .map(getModuleById)
-              .filter((mod): mod is any => mod !== undefined);
-
-            if (groupModules.length === 0) return null;
-
-            return (
-              <div key={group.id} className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4 transition-all duration-300`}>
-                <div className={`flex justify-between items-start border-b pb-3.5 ${darkMode ? 'border-slate-800' : 'border-slate-200/80'}`}>
-                  <div>
-                    <h3 className={`text-base font-bold flex items-center gap-2.5 ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>
-                      <span className="w-1.5 h-4.5 rounded-full bg-emerald-600 dark:bg-emerald-500 inline-block"></span>
-                      {group.title}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{group.desc}</p>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border ${darkMode ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
-                    કુલ {groupModules.length} મોડ્યુલ્સ
-                  </span>
+          {/* Module Section 1: Financials & Accounts */}
+          <div className={`p-5 md:p-6 rounded-3xl border ${cardBg} shadow-sm space-y-4`}>
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-5 bg-emerald-600 rounded-full" />
+                  <h3 className="text-base font-black">નાણાકીય વ્યવહારો અને હિસાબ (Financials & Accounts)</h3>
                 </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 pt-1">
-                  {groupModules.map((mod) => {
-                    const Icon = mod.icon;
-                    return (
-                      <div
-                        key={mod.id}
-                        onClick={() => onSelectTab(mod.id)}
-                        className={`p-3.5 rounded-2xl flex flex-col items-center text-center gap-2.5 transition-all duration-300 cursor-pointer group ${
-                          darkMode 
-                            ? 'hover:bg-slate-800/60 text-slate-100' 
-                            : 'hover:bg-slate-100/80 text-slate-800'
-                        }`}
-                        title={mod.title}
-                      >
-                        {/* Top side: Icon inside styled box */}
-                        <div className={`p-4 rounded-2xl border ${mod.color} shrink-0 transition-transform duration-300 group-hover:scale-110 shadow-sm`}>
-                          <Icon className="w-7 h-7" />
-                        </div>
-                        
-                        {/* Bottom: Title */}
-                        <span className={`text-xs font-bold leading-tight transition-colors duration-200 ${darkMode ? 'group-hover:text-emerald-400' : 'group-hover:text-emerald-700'}`}>
-                          {mod.title}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  આવક પાવતીઓ, ખર્ચ વાઉચર્સ, એક્ટિવ બેંક ખાતાઓ અને મિલકત વ્યવસ્થાપન
+                </p>
               </div>
-            );
-          })}
+              <span className="text-[10px] font-extrabold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
+                ૬ મોડ્યુલ્સ
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+              <button
+                onClick={() => onSelectTab('receipts')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-emerald-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100/80 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <TrendingUp className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 leading-snug">
+                  આવક પાવતીઓ
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('vouchers')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-rose-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-rose-100/80 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <TrendingDown className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-rose-600 dark:group-hover:text-rose-400 leading-snug">
+                  ખર્ચ વાઉચર્સ
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('banks')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-blue-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-blue-100/80 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <Landmark className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 leading-snug">
+                  બેંક ખાતાઓ
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('accounting')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-purple-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-purple-100/80 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 leading-snug">
+                  દ્વિ-નોંધી નામું
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('assets')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-amber-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-amber-100/80 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <Database className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 leading-snug">
+                  સ્થાયી મિલકતો
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('purchase_sales')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-pink-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-pink-100/80 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <ShoppingBag className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-pink-600 dark:group-hover:text-pink-400 leading-snug">
+                  ખરીદી અને વેચાણ
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Module Section 2: Trust Registry & Administration */}
+          <div className={`p-5 md:p-6 rounded-3xl border ${cardBg} shadow-sm space-y-4`}>
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-5 bg-emerald-600 rounded-full" />
+                  <h3 className="text-base font-black">ટ્રસ્ટ વહીવટ અને રજીસ્ટર (Trust Registry & Administration)</h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  દાતાઓ, સભાસદો, ટ્રસ્ટ બોર્ડ હોદ્દેદારો, ઠરાવ પુસ્તિકા અને દસ્તાવેજો
+                </p>
+              </div>
+              <span className="text-[10px] font-extrabold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
+                ૫ મોડ્યુલ્સ
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+              <button
+                onClick={() => onSelectTab('donors')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-indigo-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100/80 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <Users className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 leading-snug">
+                  દાતાઓ
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('members')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-emerald-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100/80 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <UserCheck className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 leading-snug">
+                  સભાસદો
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('trust_members')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-teal-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-teal-100/80 dark:bg-teal-950/80 text-teal-600 dark:text-teal-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-teal-600 dark:group-hover:text-teal-400 leading-snug">
+                  ટ્રસ્ટ હોદ્દેદારો
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('documents')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-sky-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-sky-100/80 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 leading-snug">
+                  દસ્તાવેજો
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('tharav')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-orange-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-orange-100/80 dark:bg-orange-950/80 text-orange-600 dark:text-orange-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 leading-snug">
+                  એજન્ડા & ઠરાવ
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Module Section 3: System Setup & Configuration */}
+          <div className={`p-5 md:p-6 rounded-3xl border ${cardBg} shadow-sm space-y-4`}>
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-5 bg-emerald-600 rounded-full" />
+                  <h3 className="text-base font-black">સિસ્ટમ સેટઅપ અને વિશ્લેષણ (System Configuration & Analytics)</h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  ટ્રસ્ટ ડેશબોર્ડ, ઓટો ડેટા બેકઅપ, વપરાશકર્તા પરવાનગીઓ અને સેટિંગ્સ
+                </p>
+              </div>
+              <span className="text-[10px] font-extrabold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
+                ૪ મોડ્યુલ્સ
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+              <button
+                onClick={() => onSelectTab('dashboard')}
+                className="h-32 p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-emerald-500 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center transition-transform group-hover:scale-110 shadow-md shrink-0">
+                  <BarChart3 className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-emerald-800 dark:text-emerald-300 group-hover:text-emerald-600 leading-snug">
+                  ડેશબોર્ડ & એનાલિટિક્સ
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('users')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-blue-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-blue-100/80 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <UserCog className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 leading-snug">
+                  વપરાશકર્તાઓ
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('backup')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-lime-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-lime-100/80 dark:bg-lime-950/80 text-lime-600 dark:text-lime-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <HardDrive className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-lime-600 dark:group-hover:text-lime-400 leading-snug">
+                  ઓટો બેકઅપ
+                </span>
+              </button>
+
+              <button
+                onClick={() => onSelectTab('settings')}
+                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-slate-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
+                  <Settings className="w-6 h-6" />
+                </div>
+                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-slate-600 dark:group-hover:text-slate-300 leading-snug">
+                  ટ્રસ્ટ સેટિંગ્સ
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // 2. Analytics Dashboard Mode
   return (
     <div className="space-y-6">
-      {/* Back to Control Panel Header */}
-      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <button
-          onClick={() => onSelectTab('control_panel')}
-          className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" /> કંટ્રોલ પેનલ પર પાછા જાઓ
-        </button>
-        <div className="text-right">
-          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">ડેશબોર્ડ & એનાલિટિક્સ સમીક્ષા</span>
+      {/* 1. Trust Dashboard Banner */}
+      <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-5`}>
+        <div className="flex items-center gap-4 z-10">
+          {trustSettings?.logoUrl ? (
+            <div className="w-14 h-14 bg-white rounded-2xl overflow-hidden flex items-center justify-center p-1.5 border border-slate-200 dark:border-slate-800 shrink-0 shadow-sm">
+              <img
+                src={trustSettings.logoUrl}
+                alt="Trust Logo"
+                className="max-w-full max-h-full object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : (
+            <div className="p-3.5 bg-emerald-600 text-white rounded-2xl shrink-0 shadow-sm">
+              <BarChart3 className="w-7 h-7" />
+            </div>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                darkMode ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              }`}>
+                📊 ટ્રસ્ટ એનાલિટિક્સ અને ડેશબોર્ડ
+              </span>
+            </div>
+            <h2 className={`text-xl md:text-2xl font-black mt-1 leading-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              {trustSettings?.trustNameGuj || 'ઇખર મસ્જિદ ટ્રસ્ટ , ઇખર'}
+            </h2>
+            <p className={`text-xs mt-1 font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              સ્વાગત છે, <span className="font-bold text-emerald-600 dark:text-emerald-400">{currentUser.nameGuj}</span> ({currentUser.roleGuj})
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-3 flex-wrap md:justify-end z-10">
+          <button
+            onClick={() => onSelectTab('control_panel')}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>🎛️ કંટ્રોલ પેનલ પર જાઓ</span>
+          </button>
         </div>
       </div>
 
-      {/* Hero Stats Dashboard */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Income */}
-        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all duration-300`}>
+      {/* 2. Executive KPI Summary Cards (સૌથી ઉપર હિસાબી મુખ્ય આંકડા) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Income */}
+        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all`}>
           <div className="flex justify-between items-start">
             <div>
-              <p className={`text-xs font-semibold ${textMuted}`}>કુલ આવક (Total Income)</p>
-              <h3 className="text-xl md:text-2xl font-black mt-2 text-emerald-600">₹ {totalIncome.toLocaleString('en-IN')}</h3>
+              <p className={`text-xs font-bold uppercase tracking-wider ${textMuted}`}>કુલ આવક (Total Income)</p>
+              <h3 className="text-2xl font-black mt-2 text-emerald-600 dark:text-emerald-400">
+                ₹ {totalIncome.toLocaleString('en-IN')}
+              </h3>
             </div>
-            <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-              <TrendingUp className="w-5 h-5" />
-            </span>
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+              <TrendingUp className="w-6 h-6" />
+            </div>
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-            <span>આ ચાલુ વર્ષનો સંચિત આંકડો છે</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+            <span className="text-slate-500 dark:text-slate-400">કુલ {activeReceipts.length} આવક પાવતીઓ</span>
+            <span className="font-bold text-emerald-600 flex items-center gap-0.5">
+              <ArrowUpRight className="w-3.5 h-3.5" /> જમા
+            </span>
           </div>
         </div>
 
-        {/* Total Expense */}
-        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all duration-300`}>
+        {/* Card 2: Total Expense */}
+        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all`}>
           <div className="flex justify-between items-start">
             <div>
-              <p className={`text-xs font-semibold ${textMuted}`}>કુલ ખર્ચ (Total Expense)</p>
-              <h3 className="text-xl md:text-2xl font-black mt-2 text-rose-600">₹ {totalExpense.toLocaleString('en-IN')}</h3>
+              <p className={`text-xs font-bold uppercase tracking-wider ${textMuted}`}>કુલ ખર્ચ (Total Expense)</p>
+              <h3 className="text-2xl font-black mt-2 text-rose-600 dark:text-rose-400">
+                ₹ {totalExpense.toLocaleString('en-IN')}
+              </h3>
             </div>
-            <span className="p-2 bg-rose-50 text-rose-600 rounded-xl">
-              <TrendingDown className="w-5 h-5" />
-            </span>
+            <div className="p-3 bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 rounded-2xl">
+              <TrendingDown className="w-6 h-6" />
+            </div>
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-rose-600 font-medium">
-            <span>બધા માન્ય વાઉચરો સહિત</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+            <span className="text-slate-500 dark:text-slate-400">કુલ {activeVouchers.length} માન્ય વાઉચરો</span>
+            <span className="font-bold text-rose-600 flex items-center gap-0.5">
+              <ArrowDownRight className="w-3.5 h-3.5" /> ઉધડ
+            </span>
           </div>
         </div>
 
-        {/* Cash Balance */}
-        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all duration-300`}>
+        {/* Card 3: Cash Balance */}
+        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all`}>
           <div className="flex justify-between items-start">
             <div>
-              <p className={`text-xs font-semibold ${textMuted}`}>રોકડ સિલક (Cash Balance)</p>
-              <h3 className="text-xl md:text-2xl font-black mt-2 text-amber-600">₹ {cashBalance.toLocaleString('en-IN')}</h3>
+              <p className={`text-xs font-bold uppercase tracking-wider ${textMuted}`}>રોકડ સિલક (Cash Balance)</p>
+              <h3 className="text-2xl font-black mt-2 text-amber-600 dark:text-amber-400">
+                ₹ {cashBalance.toLocaleString('en-IN')}
+              </h3>
             </div>
-            <span className="p-2 bg-amber-50 text-amber-600 rounded-xl">
-              <Wallet className="w-5 h-5" />
-            </span>
+            <div className="p-3 bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 rounded-2xl">
+              <Wallet className="w-6 h-6" />
+            </div>
           </div>
-          <div className="mt-3 flex flex-col gap-0.5 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-            <span>ઓપનિંગ (₹{openingCash.toLocaleString('en-IN')}) + જમા (₹{cashIn.toLocaleString('en-IN')}) - ખર્ચ (₹{cashOut.toLocaleString('en-IN')})</span>
-            <span className="text-[10px] text-slate-400">સેફ લોકરમાં ઉપલબ્ધ હાર્ડ કેશ</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+            <span className="text-slate-500 dark:text-slate-400">સેફ લોકરમાં હાર્ડ કૅશ</span>
+            <span className="font-bold text-amber-600">ઉપલબ્ધ</span>
           </div>
         </div>
 
-        {/* Bank Balance */}
-        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all duration-300`}>
+        {/* Card 4: Bank Balance */}
+        <div className={`p-5 rounded-2xl border ${cardBg} shadow-sm hover:shadow-md transition-all`}>
           <div className="flex justify-between items-start">
             <div>
-              <p className={`text-xs font-semibold ${textMuted}`}>બેંક સિલક (Bank Balance)</p>
-              <h3 className="text-xl md:text-2xl font-black mt-2 text-blue-600">₹ {bankBalance.toLocaleString('en-IN')}</h3>
+              <p className={`text-xs font-bold uppercase tracking-wider ${textMuted}`}>બેંક સિલક (Bank Balance)</p>
+              <h3 className="text-2xl font-black mt-2 text-blue-600 dark:text-blue-400">
+                ₹ {bankBalance.toLocaleString('en-IN')}
+              </h3>
             </div>
-            <span className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-              <Landmark className="w-5 h-5" />
-            </span>
+            <div className="p-3 bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 rounded-2xl">
+              <Landmark className="w-6 h-6" />
+            </div>
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 font-medium">
-            <span>કુલ {banks.length} સક્રિય બેંક ખાતાઓ</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+            <span className="text-slate-500 dark:text-slate-400">કુલ {banks.length} સક્રિય બેંક એકાઉન્ટ</span>
+            <span className="font-bold text-blue-600">બેંક સિલક</span>
           </div>
         </div>
       </div>
 
-      {/* Secondary Stats Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className={`p-4 rounded-xl border ${cardBg} flex items-center gap-3`}>
-          <Users className="w-5 h-5 text-indigo-500" />
-          <div>
-            <span className={`text-[10px] block ${textMuted}`}>કુલ દાતાઓ (Donors)</span>
-            <span className="font-bold text-sm">{donors.length} દાતા મિત્રો</span>
+      {/* 3. Professional Interactive Charts Section (ઉપર ગ્રાફ અને વિશ્લેષણ) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Chart 1: Monthly Income vs Expense Comparison Bar Chart */}
+        <div className={`lg:col-span-2 p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h3 className="text-base font-black flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                માસિક આવક વિરુદ્ધ ખર્ચ સરખામણી ગ્રાફ (Monthly Income vs Expense)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                છેલ્લા ૬ મહિનાનો સરખામણી ગ્રાફ (બાર ગ્રાફ ઉપર કર્સર રાખી વિગતો જુઓ)
+              </p>
+            </div>
+            
+            {/* Chart Legend */}
+            <div className="flex items-center gap-4 text-xs font-bold shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-md bg-emerald-500 inline-block"></span>
+                <span>આવક (Income)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-md bg-rose-500 inline-block"></span>
+                <span>ખર્ચ (Expense)</span>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className={`p-4 rounded-xl border ${cardBg} flex items-center gap-3`}>
-          <Calendar className="w-5 h-5 text-emerald-500" />
-          <div>
-            <span className={`text-[10px] block ${textMuted}`}>આજની આવક (Today)</span>
-            <span className="font-bold text-sm text-emerald-600">₹ {todayIncome.toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-        <div className={`p-4 rounded-xl border ${cardBg} flex items-center gap-3`}>
-          <Calendar className="w-5 h-5 text-rose-500" />
-          <div>
-            <span className={`text-[10px] block ${textMuted}`}>આજનો ખર્ચ (Today)</span>
-            <span className="font-bold text-sm text-rose-600">₹ {todayExpense.toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-        <div className={`p-4 rounded-xl border ${cardBg} flex items-center gap-3`}>
-          <DollarSign className="w-5 h-5 text-violet-500" />
-          <div>
-            <span className={`text-[10px] block ${textMuted}`}>માસિક સરવૈયું (July)</span>
-            <span className="font-bold text-sm text-violet-600">₹ {(monthlyIncome - monthlyExpense).toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Grid of Chart and Recent Feed */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Dynamic Category Graph */}
-        <div className={`xl:col-span-2 p-6 rounded-2xl border ${cardBg} shadow-sm`}>
-          <h4 className="text-base font-bold mb-4">આવક વિતરણ સ્ત્રોત (Income Distribution Sources)</h4>
-          
-          <div className="space-y-4">
-            {categoriesData.map((cat, idx) => {
-              const pct = totalIncome > 0 ? (cat.val / totalIncome) * 100 : 0;
-              const colorClass = [
-                'bg-emerald-500', 'bg-blue-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500'
-              ][idx % 6];
-              return (
-                <div key={idx} className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span>{cat.name}</span>
-                    <span className={textMuted}>₹ {cat.val.toLocaleString('en-IN')} ({pct.toFixed(1)}%)</span>
+          {/* Visual SVG / HTML Bar Chart */}
+          <div className="pt-4 pb-2">
+            <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 px-2 border-b border-slate-200 dark:border-slate-800 relative">
+              
+              {/* Horizontal Grid lines */}
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20 dark:opacity-10">
+                <div className="border-b border-slate-400 w-full"></div>
+                <div className="border-b border-slate-400 w-full"></div>
+                <div className="border-b border-slate-400 w-full"></div>
+                <div className="border-b border-slate-400 w-full"></div>
+              </div>
+
+              {monthlyTrends.map((month, idx) => {
+                const incHeightPct = Math.max(6, Math.round((month.inc / maxTrendVal) * 100));
+                const expHeightPct = Math.max(6, Math.round((month.exp / maxTrendVal) * 100));
+                const isHovered = chartHoverIndex === idx;
+
+                return (
+                  <div
+                    key={month.key}
+                    onMouseEnter={() => setChartHoverIndex(idx)}
+                    onMouseLeave={() => setChartHoverIndex(null)}
+                    className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative z-10"
+                  >
+                    {/* Hover Tooltip Popup */}
+                    {isHovered && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: -10 }}
+                        className="absolute bottom-full mb-2 bg-slate-900 text-white text-[11px] p-2.5 rounded-xl shadow-xl z-30 whitespace-nowrap border border-slate-700 font-sans pointer-events-none"
+                      >
+                        <div className="font-bold border-b border-slate-700 pb-1 mb-1 text-emerald-400">
+                          {month.label}
+                        </div>
+                        <div className="text-emerald-300">આવક: ₹{month.inc.toLocaleString('en-IN')}</div>
+                        <div className="text-rose-300">ખર્ચ: ₹{month.exp.toLocaleString('en-IN')}</div>
+                        <div className={`font-bold mt-1 pt-1 border-t border-slate-800 ${month.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          નેટ બાકી: ₹{month.net.toLocaleString('en-IN')}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Bars Container */}
+                    <div className="w-full max-w-[64px] flex items-end justify-center gap-1.5 h-full pt-6">
+                      {/* Income Bar */}
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${incHeightPct}%` }}
+                        transition={{ duration: 0.6, delay: idx * 0.08 }}
+                        className={`w-1/2 rounded-t-lg transition-all ${
+                          isHovered ? 'bg-emerald-400 shadow-lg' : 'bg-emerald-500'
+                        } flex items-end justify-center pb-1`}
+                      >
+                        <span className="text-[9px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity transform -rotate-90 sm:rotate-0">
+                          {month.inc > 0 ? `₹${(month.inc / 1000).toFixed(0)}k` : ''}
+                        </span>
+                      </motion.div>
+
+                      {/* Expense Bar */}
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${expHeightPct}%` }}
+                        transition={{ duration: 0.6, delay: idx * 0.08 + 0.04 }}
+                        className={`w-1/2 rounded-t-lg transition-all ${
+                          isHovered ? 'bg-rose-400 shadow-lg' : 'bg-rose-500'
+                        } flex items-end justify-center pb-1`}
+                      >
+                        <span className="text-[9px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity transform -rotate-90 sm:rotate-0">
+                          {month.exp > 0 ? `₹${(month.exp / 1000).toFixed(0)}k` : ''}
+                        </span>
+                      </motion.div>
+                    </div>
+
+                    {/* Month Label */}
+                    <div className="mt-2 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                      {month.shortLabel}
+                    </div>
                   </div>
-                  <div className={`w-full h-3 rounded-full overflow-hidden ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.8, delay: idx * 0.1 }}
-                      className={`h-full ${colorClass}`}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
-          <div className="mt-6 p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 flex justify-between items-center text-xs">
+          {/* Quick Summary Bar */}
+          <div className="p-3.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-wrap justify-between items-center text-xs gap-3">
             <div>
-              <span className={`block font-medium ${textMuted}`}>ચાલુ માસિક કુલ આવક (July 2026)</span>
-              <strong className="text-emerald-600 text-sm">₹ {monthlyIncome.toLocaleString('en-IN')}</strong>
+              <span className={`block font-medium ${textMuted}`}>ચાલુ મહિનાની આવક ({currentMonth})</span>
+              <strong className="text-emerald-600 text-sm font-black">₹ {monthlyIncome.toLocaleString('en-IN')}</strong>
             </div>
-            <div className="text-right">
-              <span className={`block font-medium ${textMuted}`}>ચાલુ માસિક કુલ ખર્ચ (July 2026)</span>
-              <strong className="text-rose-600 text-sm">₹ {monthlyExpense.toLocaleString('en-IN')}</strong>
+            <div>
+              <span className={`block font-medium ${textMuted}`}>ચાલુ મહિનાનો ખર્ચ ({currentMonth})</span>
+              <strong className="text-rose-600 text-sm font-black">₹ {monthlyExpense.toLocaleString('en-IN')}</strong>
+            </div>
+            <div>
+              <span className={`block font-medium ${textMuted}`}>માસિક નેટ વધારો (Net Surplus)</span>
+              <strong className={`text-sm font-black ${monthlyNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                ₹ {monthlyNet.toLocaleString('en-IN')}
+              </strong>
             </div>
           </div>
         </div>
 
-        {/* Real-time Activity Logs / Recent Tx */}
-        <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm`}>
-          <h4 className="text-base font-bold mb-4">તાજેતરના ટ્રાન્ઝેક્શન (Recent Postings)</h4>
-          <div className="space-y-3">
+        {/* Chart 2: Income Distribution by Category Progress Donut */}
+        <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="text-base font-black flex items-center gap-2">
+              <PieChart className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              આવક વિતરણ સ્ત્રોતો (Income Sources)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              વિવિધ ફંડ/કેટેગરી મુજબ પ્રાપ્ત દાન
+            </p>
+          </div>
+
+          <div className="space-y-3.5 max-h-[280px] overflow-y-auto pr-1">
+            {categoriesData.length === 0 ? (
+              <p className={`text-xs text-center py-8 ${textMuted}`}>કોઈ વર્ગીકરણ ઉપલબ્ધ નથી.</p>
+            ) : (
+              categoriesData.map((cat, idx) => {
+                const pct = totalIncome > 0 ? (cat.val / totalIncome) * 100 : 0;
+                const colors = [
+                  'bg-emerald-500', 'bg-blue-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500', 'bg-rose-500', 'bg-indigo-500'
+                ];
+                const colorClass = colors[idx % colors.length];
+
+                return (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[140px]">{cat.name}</span>
+                      <span className="font-black text-slate-700 dark:text-slate-300">
+                        ₹ {cat.val.toLocaleString('en-IN')} <span className="text-[10px] text-slate-400 font-normal">({pct.toFixed(1)}%)</span>
+                      </span>
+                    </div>
+                    <div className={`w-full h-2.5 rounded-full overflow-hidden ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.8, delay: idx * 0.1 }}
+                        className={`h-full ${colorClass}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs font-bold">
+            <span className={textMuted}>આજની આવક:</span>
+            <span className="text-emerald-600">₹ {todayIncome.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+
+      </div>
+
+      {/* 4. Recent Transactions & Quick Actions Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Recent Transactions Feed */}
+        <div className={`lg:col-span-2 p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
+          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h3 className="text-base font-black">તાજેતરના ટ્રાન્ઝેક્શન્સ (Recent Financial Postings)</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">છેલ્લા નોંધાયેલા પાવતી અને વાઉચરો</p>
+            </div>
+            <button
+              onClick={() => onSelectTab('accounting')}
+              className="text-xs text-emerald-600 dark:text-emerald-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              રોજમેળ જુઓ <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="space-y-2.5">
             {recentTx.length === 0 ? (
-              <p className={`text-xs text-center py-6 ${textMuted}`}>કોઈ ટ્રાન્ઝેક્શન મળી આવ્યા નથી.</p>
+              <p className={`text-xs text-center py-6 ${textMuted}`}>કોઈ વ્યવહારો મળી આવ્યા નથી.</p>
             ) : (
               recentTx.map((tx: any) => {
                 const isInc = tx.type === 'INCOME';
                 return (
-                  <div key={tx.id} className={`p-3 rounded-xl border ${darkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-100'} flex items-center justify-between gap-2 text-xs`}>
-                    <div className="truncate">
-                      <div className="flex items-center gap-1.5 font-bold">
-                        <span className={`w-2 h-2 rounded-full ${isInc ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                        <span className="truncate max-w-[120px]">{isInc ? tx.donorNameGuj : tx.paidToGuj || 'પરચૂરણ ખર્ચ'}</span>
+                  <div
+                    key={tx.id}
+                    onClick={() => onSelectTab(isInc ? 'receipts' : 'vouchers')}
+                    className={`p-3 rounded-xl border ${
+                      darkMode ? 'bg-slate-850 border-slate-800 hover:bg-slate-800' : 'bg-slate-50/80 border-slate-200/80 hover:bg-white'
+                    } flex items-center justify-between gap-3 text-xs transition-all cursor-pointer group`}
+                  >
+                    <div className="flex items-center gap-3 truncate">
+                      <div className={`p-2 rounded-xl shrink-0 ${
+                        isInc ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-950/80 dark:text-rose-400'
+                      }`}>
+                        {isInc ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                       </div>
-                      <span className={`block mt-0.5 text-[10px] ${textMuted}`}>{tx.receiptNumber || tx.voucherNumber} • {tx.date}</span>
+                      <div className="truncate">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 truncate max-w-[160px] sm:max-w-[240px]">
+                            {isInc ? tx.donorNameGuj : tx.paidToGuj || 'પરચૂરણ ખર્ચ'}
+                          </span>
+                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded-md uppercase ${
+                            isInc ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                          }`}>
+                            {isInc ? tx.receiptNumber : tx.voucherNumber}
+                          </span>
+                        </div>
+                        <span className={`block mt-0.5 text-[10px] ${textMuted}`}>
+                          તારીખ: {tx.date} • ચૂકવણી: {tx.paymentMode} {tx.category ? `• ${tx.category.split(' ')[0]}` : ''}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right font-black">
-                      <span className={isInc ? 'text-emerald-600' : 'text-rose-600'}>
-                        {isInc ? '+' : '-'} ₹{tx.amount.toLocaleString('en-IN')}
-                      </span>
-                      <span className={`block text-[9px] font-normal ${textMuted}`}>
-                        {tx.category ? tx.category.replace(/\s*\(.*?\)\s*/g, '').trim() : ''}
+
+                    <div className="text-right shrink-0">
+                      <span className={`text-sm font-black ${isInc ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {isInc ? '+' : '-'} ₹ {tx.amount.toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
@@ -485,6 +816,61 @@ export default function Dashboard({ mode = 'control_panel', receipts, vouchers, 
             )}
           </div>
         </div>
+
+        {/* Quick Shortcut Buttons */}
+        <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="text-base font-black">ઝડપી એક્શન (Quick Actions)</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">મુખ્ય હિસાબી કામગીરી માટે શોર્ટકટ</p>
+          </div>
+
+          <div className="space-y-2.5">
+            <button
+              onClick={() => onSelectTab('receipts')}
+              className="w-full p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/80 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer flex items-center justify-between gap-2 font-bold text-xs text-emerald-800 dark:text-emerald-300 group"
+            >
+              <div className="flex items-center gap-2.5">
+                <PlusCircle className="w-4 h-4 text-emerald-600 group-hover:text-white" />
+                <span>+ નવી આવક પાવતી બનાવો</span>
+              </div>
+              <ChevronRight className="w-4 h-4 opacity-60 group-hover:opacity-100" />
+            </button>
+
+            <button
+              onClick={() => onSelectTab('vouchers')}
+              className="w-full p-3 rounded-xl border border-rose-200 dark:border-rose-800/80 bg-rose-50/50 dark:bg-rose-950/30 hover:bg-rose-600 hover:text-white transition-all cursor-pointer flex items-center justify-between gap-2 font-bold text-xs text-rose-800 dark:text-rose-300 group"
+            >
+              <div className="flex items-center gap-2.5">
+                <PlusCircle className="w-4 h-4 text-rose-600 group-hover:text-white" />
+                <span>+ નવું ખર્ચ વાઉચર બનાવો</span>
+              </div>
+              <ChevronRight className="w-4 h-4 opacity-60 group-hover:opacity-100" />
+            </button>
+
+            <button
+              onClick={() => onSelectTab('banks')}
+              className="w-full p-3 rounded-xl border border-blue-200 dark:border-blue-800/80 bg-blue-50/50 dark:bg-blue-950/30 hover:bg-blue-600 hover:text-white transition-all cursor-pointer flex items-center justify-between gap-2 font-bold text-xs text-blue-800 dark:text-blue-300 group"
+            >
+              <div className="flex items-center gap-2.5">
+                <Landmark className="w-4 h-4 text-blue-600 group-hover:text-white" />
+                <span>બેંક જમા / ઉપાડ વ્યવહાર</span>
+              </div>
+              <ChevronRight className="w-4 h-4 opacity-60 group-hover:opacity-100" />
+            </button>
+
+            <button
+              onClick={() => onSelectTab('accounting')}
+              className="w-full p-3 rounded-xl border border-purple-200 dark:border-purple-800/80 bg-purple-50/50 dark:bg-purple-950/30 hover:bg-purple-600 hover:text-white transition-all cursor-pointer flex items-center justify-between gap-2 font-bold text-xs text-purple-800 dark:text-purple-300 group"
+            >
+              <div className="flex items-center gap-2.5">
+                <BookOpen className="w-4 h-4 text-purple-600 group-hover:text-white" />
+                <span>રોજમેળ & કેશબુક તપાસો</span>
+              </div>
+              <ChevronRight className="w-4 h-4 opacity-60 group-hover:opacity-100" />
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "TrustRecord": {
+      "title": "TrustRecord",
+      "description": "Full financial and operational state of a public trust",
+      "type": "object",
+      "properties": {
+        "trust_name": {
+          "type": "string",
+          "description": "The name of the trust"
+        },
+        "last_cloud_sync": {
+          "type": "string",
+          "description": "Timestamp of last sync"
+        }
+      }
+    },
+    "SystemMaster": {
+      "title": "SystemMaster",
+      "description": "System licenses and user management configuration",
+      "type": "object",
+      "properties": {
+        "list": {
+          "type": "array",
+          "description": "List of system entities"
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "Timestamp of last update"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/trust_records/{trustId}": {
+      "schema": "TrustRecord",
+      "description": "Records and data state for each trust"
+    },
+    "/system_master/{docId}": {
+      "schema": "SystemMaster",
+      "description": "Global system master documents"
+    }
+  }
+}

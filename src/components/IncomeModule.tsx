@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Search, Printer, Trash2, Eye, X, Check, Award, QrCode, ArrowLeft, Download, Loader2, Edit3 } from 'lucide-react';
+import { Plus, Search, Printer, Trash2, Eye, X, Check, CheckCircle2, Award, QrCode, ArrowLeft, Download, Loader2, Edit3 } from 'lucide-react';
 import { IncomeReceipt, Donor, IncomeCategory, BankAccount, TrustSettings } from '../types';
 import { downloadContainerAsPDF, printContainer } from '../utils/pdfPrint';
 
@@ -67,6 +67,9 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
 
   // Form states
   const [donorId, setDonorId] = useState('');
+  const [receiptDate, setReceiptDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [customReceiptNum, setCustomReceiptNum] = useState('');
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [defaultCategoryRenames] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem('default_category_renames');
     return saved ? JSON.parse(saved) : {};
@@ -83,6 +86,17 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
   const [customDonorName, setCustomDonorName] = useState('');
   const [customDonorPhone, setCustomDonorPhone] = useState('');
   const [customDonorPan, setCustomDonorPan] = useState('');
+
+  // Next receipt number preview
+  const nextReceiptSeq = (() => {
+    const highestNum = receipts.reduce((max, r) => {
+      const match = r.receiptNumber?.match(/\d+$/);
+      const num = match ? parseInt(match[0], 10) : 0;
+      return Math.max(max, isNaN(num) ? 0 : num);
+    }, 0);
+    const seq = Math.max(highestNum + 1, receipts.length + 1);
+    return `TR-2026-${String(seq).padStart(4, '0')}`;
+  })();
 
   // Search filter
   const filteredReceipts = receipts.filter(r => {
@@ -136,6 +150,8 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
   const handleStartEdit = (r: IncomeReceipt) => {
     setEditingReceipt(r);
     setDonorId(r.donorId || '');
+    setReceiptDate(r.date || new Date().toISOString().split('T')[0]);
+    setCustomReceiptNum(r.receiptNumber || '');
     setCategory(r.category);
     setAmount(String(r.amount));
     setPaymentMode(r.paymentMode);
@@ -148,8 +164,9 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
   // Submit Handler
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) {
-      alert('મહેરબાની કરીને સાચી રકમ દાખલ કરો.');
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      alert('મહેરબાની કરીને સાચી રકમ (Amount) દાખલ કરો.');
       return;
     }
 
@@ -159,47 +176,63 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
     if (donorId === 'bank-interest') {
       finalDonorName = 'બેંક વ્યાજ / અન્ય જમા (Bank Interest)';
       finalDonorId = 'bank-interest';
-    } else if (donorId === 'new') {
-      const newDnrName = customDonorName || 'અજ્ઞાત દાતા (Anonymous)';
+    } else if (donorId === 'new' || (!donorId && customDonorName)) {
+      const newDnrName = customDonorName.trim() || 'અજ્ઞાત દાતા (Anonymous)';
       finalDonorName = newDnrName;
       finalDonorId = 'dnr-temp-' + Date.now();
-    } else {
+    } else if (donorId) {
       const selected = donors.find(d => d.id === donorId);
-      finalDonorName = selected ? selected.nameGuj : 'અજ્ઞાત દાતા';
-    }
-
-    if (!finalDonorId) {
-      alert('મહેરબાની કરીને દાતા પસંદ કરો.');
+      finalDonorName = selected ? selected.nameGuj : (customDonorName || 'અજ્ઞાત દાતા');
+    } else if (customDonorName.trim()) {
+      finalDonorName = customDonorName.trim();
+      finalDonorId = 'dnr-temp-' + Date.now();
+    } else {
+      alert('મહેરબાની કરીને દાતાનું નામ દાખલ કરો અથવા યાદીમાંથી પસંદ કરો.');
       return;
     }
+
+    if (paymentMode !== 'રોકડ (Cash)' && banks.length > 0 && !bankId) {
+      alert('મહેરબાની કરીને બેંક ખાતું પસંદ કરો.');
+      return;
+    }
+
+    const generatedNum = customReceiptNum.trim() || nextReceiptSeq;
 
     if (editingReceipt && onEditReceipt) {
       onEditReceipt({
         ...editingReceipt,
+        date: receiptDate,
         donorId: finalDonorId,
         donorNameGuj: finalDonorName,
         category,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         paymentMode,
         bankId: paymentMode !== 'રોકડ (Cash)' ? bankId : undefined,
         chequeNumber: paymentMode === 'ચેક (Cheque)' ? chequeNumber : undefined,
         remarksGuj: remarksGuj || `${category} સ્વીકાર્યા`,
       });
       setEditingReceipt(null);
+      setSuccessNotice(`✓ પાવતી નં. ${editingReceipt.receiptNumber} સફળતાપૂર્વક અપડેટ થઈ ગઈ છે!`);
     } else {
-      onAddReceipt({
-        date: new Date().toISOString().split('T')[0],
+      (onAddReceipt as any)({
+        date: receiptDate || new Date().toISOString().split('T')[0],
+        receiptNumber: generatedNum,
         donorId: finalDonorId,
         donorNameGuj: finalDonorName,
         category,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         paymentMode,
         bankId: paymentMode !== 'રોકડ (Cash)' ? bankId : undefined,
         chequeNumber: paymentMode === 'ચેક (Cheque)' ? chequeNumber : undefined,
         remarksGuj: remarksGuj || `${category} સ્વીકાર્યા`,
-        operatorGuj: currentUser.nameGuj
+        operatorGuj: currentUser.nameGuj,
+        customDonorPhone,
+        customDonorPan
       });
+      setSuccessNotice(`✓ નવી પાવતી નં. ${generatedNum} સફળતાપૂર્વક જનરેટ થઈ ગઈ છે!`);
     }
+
+    setTimeout(() => setSuccessNotice(null), 5000);
 
     // Reset Form
     setDonorId('');
@@ -210,6 +243,7 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
     setCustomDonorName('');
     setCustomDonorPhone('');
     setCustomDonorPan('');
+    setCustomReceiptNum('');
     setEditingReceipt(null);
     setShowAddForm(false);
   };
@@ -307,6 +341,19 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
         </div>
       </div>
 
+      {/* Notification banner */}
+      {successNotice && (
+        <div className="p-4 rounded-xl bg-emerald-500 text-white font-bold text-sm shadow-md flex items-center justify-between animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5" />
+            <span>{successNotice}</span>
+          </div>
+          <button onClick={() => setSuccessNotice(null)} className="text-white hover:text-emerald-100 p-1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Grid containing Receipt List or New Entry Form */}
       {showAddForm ? (
         <motion.div
@@ -315,46 +362,55 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
           className={`p-6 rounded-2xl border ${cardBg} shadow-sm max-w-4xl mx-auto`}
         >
           <div className="flex justify-between items-center pb-4 border-b border-slate-200 dark:border-slate-800 mb-6">
-            <h3 className="font-bold text-base text-emerald-600 flex items-center gap-2">
-              <Award className="w-5 h-5" /> નવી આવક પાવતી ફોર્મ (New Income Receipt Entry)
-            </h3>
-            <button onClick={() => setShowAddForm(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+            <div>
+              <h3 className="font-bold text-base text-emerald-600 flex items-center gap-2">
+                <Award className="w-5 h-5" /> {editingReceipt ? 'આવક પાવતી સુધારો (Edit Income Receipt)' : 'નવી આવક પાવતી ફોર્મ (New Income Receipt Entry)'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                પાવતી ક્રમાંક: <span className="font-mono font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">{editingReceipt ? editingReceipt.receiptNumber : nextReceiptSeq}</span>
+              </p>
+            </div>
+            <button onClick={() => { setShowAddForm(false); setEditingReceipt(null); }} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Donor Dropdown */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Date */}
               <div>
-                <label className="block text-xs font-bold mb-1.5">દાતાની પસંદગી (Select Donor) *</label>
-                <select
-                  value={donorId}
-                  onChange={(e) => setDonorId(e.target.value)}
-                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-emerald-500`}
+                <label className="block text-xs font-bold mb-1.5">તારીખ (Receipt Date) *</label>
+                <input
+                  type="date"
+                  value={receiptDate}
+                  onChange={(e) => setReceiptDate(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl text-xs font-mono ${inputBg} focus:outline-emerald-500`}
                   required
-                >
-                  <option value="">-- દાતા પસંદ કરો --</option>
-                  <option value="new">+ નવો દાતા ઉમેરો (Quick Add Donor)</option>
-                  <option value="bank-interest">🏛️ બેંક વ્યાજ / અન્ય જમા (Bank Interest / Other Credit)</option>
-                  {donors.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.nameGuj} ({d.phone || 'મોબાઇલ નહિ'})
-                    </option>
-                  ))}
-                </select>
+                />
+              </div>
+
+              {/* Receipt Number */}
+              <div>
+                <label className="block text-xs font-bold mb-1.5">પાવતી નંબર (Receipt No.)</label>
+                <input
+                  type="text"
+                  placeholder={nextReceiptSeq}
+                  value={customReceiptNum}
+                  onChange={(e) => setCustomReceiptNum(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl text-xs font-mono font-bold ${inputBg} focus:outline-emerald-500`}
+                />
               </div>
 
               {/* Category */}
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-bold">આવકનો પ્રકાર (Income Category) *</label>
+                  <label className="block text-xs font-bold">આવકનો પ્રકાર (Category) *</label>
                   <button
                     type="button"
                     onClick={handleAddNewCategory}
                     className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 flex items-center gap-1"
                   >
-                    + નવું ખાતું (Add Account)
+                    + નવું ખાતું
                   </button>
                 </div>
                 <select
@@ -368,58 +424,89 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
                 </select>
               </div>
 
-              {/* Quick Donor Form if 'new' is selected */}
-              {donorId === 'new' && (
-                <div className="md:col-span-2 p-4 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold mb-1">દાતાનું પૂરું નામ *</label>
-                    <input
-                      type="text"
-                      placeholder="દાખલા તરીકે: પરેશભાઈ જી. શાહ"
-                      value={customDonorName}
-                      onChange={(e) => setCustomDonorName(e.target.value)}
-                      className={`w-full p-2 rounded-lg text-xs ${inputBg}`}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold mb-1">મોબાઇલ નંબર</label>
-                    <input
-                      type="text"
-                      placeholder="98XXXXXX"
-                      value={customDonorPhone}
-                      onChange={(e) => setCustomDonorPhone(e.target.value)}
-                      className={`w-full p-2 rounded-lg text-xs ${inputBg}`}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold mb-1">PAN નંબર (80G ટેક્સ લાભ માટે)</label>
-                    <input
-                      type="text"
-                      placeholder="ABCDE1234F"
-                      value={customDonorPan}
-                      onChange={(e) => setCustomDonorPan(e.target.value.toUpperCase())}
-                      className={`w-full p-2 rounded-lg text-xs ${inputBg}`}
-                    />
-                  </div>
+              {/* Donor Dropdown & Direct Donor Name */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold mb-1.5">દાતા પસંદ કરો અથવા નવું નામ લખો (Donor) *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value={donorId}
+                    onChange={(e) => {
+                      setDonorId(e.target.value);
+                      if (e.target.value && e.target.value !== 'new' && e.target.value !== 'bank-interest') {
+                        const d = donors.find(dn => dn.id === e.target.value);
+                        if (d) {
+                          setCustomDonorName(d.nameGuj);
+                          setCustomDonorPhone(d.phone || '');
+                          setCustomDonorPan(d.panNumber || '');
+                        }
+                      }
+                    }}
+                    className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-emerald-500`}
+                  >
+                    <option value="">-- મોજૂદ દાતામાંથી પસંદ કરો --</option>
+                    <option value="new">+ નવો દાતા (Add New Donor)</option>
+                    <option value="bank-interest">🏛️ બેંક વ્યાજ / અન્ય જમા (Bank Interest)</option>
+                    {donors.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.nameGuj} {d.phone ? `(${d.phone})` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="દાતાનું પૂરું નામ લખો (દા.ત. રમેશભાઈ શાહ)"
+                    value={customDonorName}
+                    onChange={(e) => {
+                      setCustomDonorName(e.target.value);
+                      if (donorId && donorId !== 'new' && donorId !== 'bank-interest') {
+                        setDonorId('new');
+                      }
+                    }}
+                    className={`w-full p-2.5 rounded-xl text-xs font-bold ${inputBg} focus:outline-emerald-500`}
+                  />
                 </div>
-              )}
+              </div>
 
               {/* Amount */}
               <div>
                 <label className="block text-xs font-bold mb-1.5">રકમ (Amount in ₹) *</label>
                 <input
                   type="number"
-                  placeholder="રૂપિયા રકમ દાખલ કરો"
+                  placeholder="દા.ત. 5000"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-emerald-500`}
+                  className={`w-full p-2.5 rounded-xl text-xs font-bold text-emerald-600 ${inputBg} focus:outline-emerald-500`}
                   required
                 />
               </div>
 
+              {/* Optional Donor details */}
+              <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+                <div>
+                  <label className="block text-[11px] font-bold mb-1 text-slate-600 dark:text-slate-300">દાતાનો મોબાઇલ નંબર</label>
+                  <input
+                    type="text"
+                    placeholder="98XXXXXX"
+                    value={customDonorPhone}
+                    onChange={(e) => setCustomDonorPhone(e.target.value)}
+                    className={`w-full p-2 rounded-lg text-xs ${inputBg}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold mb-1 text-slate-600 dark:text-slate-300">PAN નંબર (80G ટેક્સ રિસીપ્ટ માટે)</label>
+                  <input
+                    type="text"
+                    placeholder="ABCDE1234F"
+                    value={customDonorPan}
+                    onChange={(e) => setCustomDonorPan(e.target.value.toUpperCase())}
+                    className={`w-full p-2 rounded-lg text-xs uppercase font-mono ${inputBg}`}
+                  />
+                </div>
+              </div>
+
               {/* Payment Mode */}
-              <div>
+              <div className="md:col-span-1">
                 <label className="block text-xs font-bold mb-1.5">ચૂકવણી મોડ (Payment Mode) *</label>
                 <select
                   value={paymentMode}
@@ -427,21 +514,20 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
                   className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-emerald-500`}
                 >
                   <option value="રોકડ (Cash)">રોકડ (Cash)</option>
-                  <option value="બેંક ટ્રાન્સફર (Bank)">બેંક ટ્રાન્સફર (Bank Transfer)</option>
+                  <option value="બેંક ટ્રાન્સફર (Bank)">બેંક ટ્રાન્સફર (Bank Transfer / UPI)</option>
                   <option value="ચેક (Cheque)">ચેક (Cheque)</option>
                 </select>
               </div>
 
               {/* Conditional Bank Mappings */}
               {paymentMode !== 'રોકડ (Cash)' && (
-                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <>
                   <div>
-                    <label className="block text-xs font-bold mb-1.5">કઈ બેંકમાં જમા થયા? (Select Bank Account) *</label>
+                    <label className="block text-xs font-bold mb-1.5">કઈ બેંકમાં જમા થયા? (Select Bank) *</label>
                     <select
                       value={bankId}
                       onChange={(e) => setBankId(e.target.value)}
                       className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-emerald-500`}
-                      required
                     >
                       <option value="">-- બેંક ખાતું પસંદ કરો --</option>
                       {banks.map(b => (
@@ -454,28 +540,27 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
 
                   {paymentMode === 'ચેક (Cheque)' && (
                     <div>
-                      <label className="block text-xs font-bold mb-1.5">ચેક નંબર (Cheque Number) *</label>
+                      <label className="block text-xs font-bold mb-1.5">ચેક નંબર (Cheque Number)</label>
                       <input
                         type="text"
                         placeholder="૬ આંકડાનો ચેક નંબર"
                         value={chequeNumber}
                         onChange={(e) => setChequeNumber(e.target.value)}
                         className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-emerald-500`}
-                        required
                       />
                     </div>
                   )}
-                </div>
+                </>
               )}
 
               {/* Remarks */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold mb-1.5">નોંધ / વિગતો (Remarks) *</label>
+              <div className="md:col-span-3">
+                <label className="block text-xs font-bold mb-1.5">નોંધ / વિગતો (Remarks)</label>
                 <textarea
                   placeholder="દાન હેતુ અથવા વધારાની વિગતો દાખલ કરો..."
                   value={remarksGuj}
                   onChange={(e) => setRemarksGuj(e.target.value)}
-                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} h-20 focus:outline-emerald-500`}
+                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} h-16 focus:outline-emerald-500`}
                 />
               </div>
             </div>
@@ -483,16 +568,17 @@ export default function IncomeModule({ receipts, donors, banks, onAddReceipt, on
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setShowAddForm(false)}
+                onClick={() => { setShowAddForm(false); setEditingReceipt(null); }}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-xl text-xs font-bold"
               >
                 રદ કરો (Cancel)
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm"
+                id="btn-save-income-receipt"
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition-transform active:scale-95"
               >
-                પાવતી જનરેટ કરો (Create Receipt)
+                <CheckCircle2 className="w-4 h-4" /> {editingReceipt ? 'પાવતી અપડેટ કરો (Update)' : '✓ પાવતી જનરેટ કરો & સેવ કરો (Generate Receipt)'}
               </button>
             </div>
           </form>

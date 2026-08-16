@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { BookOpen, Table, FileText, Landmark, FileSpreadsheet, Download, Printer, Repeat, ArrowRight, CheckCircle2, X, Sparkles, ShieldCheck, TrendingUp, Scale, ArrowUpRight, ArrowDownRight, Calculator, Search, Filter, Layers, Package, Archive, Box, Loader2 } from 'lucide-react';
+import { BookOpen, Table, FileText, Landmark, FileSpreadsheet, Download, Printer, Repeat, ArrowRight, CheckCircle2, X, Sparkles, ShieldCheck, TrendingUp, Scale, ArrowUpRight, ArrowDownRight, Calculator, Search, Filter, Layers, Package, Archive, Box, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { IncomeReceipt, ExpenseVoucher, BankAccount, Asset, TrustSettings, InventoryItem, PurchaseBill, SalesBill, MemberLoanApplication } from '../types';
 import OpeningBalancesModal from './OpeningBalancesModal';
 import { downloadContainerAsPDF, printContainer } from '../utils/pdfPrint';
@@ -24,6 +24,8 @@ interface AccountingModuleProps {
   onUpdateTrustSettings?: (updated: TrustSettings) => void;
   reconciliationList?: any[];
   onEditBankAccount?: (acc: BankAccount) => void;
+  onDeleteReceipt?: (id: string) => void;
+  onDeleteVoucher?: (id: string) => void;
 }
 
 export default function AccountingModule({
@@ -39,9 +41,18 @@ export default function AccountingModule({
   trustSettings,
   onUpdateTrustSettings,
   reconciliationList,
-  onEditBankAccount
+  onEditBankAccount,
+  onDeleteReceipt,
+  onDeleteVoucher
 }: AccountingModuleProps) {
   const [activeSubTab, setActiveSubTab] = useState<'daybook' | 'ledger' | 'trial' | 'pnl' | 'inc_exp' | 'balance' | 'deadstock'>('daybook');
+  const [entryToDelete, setEntryToDelete] = useState<{
+    id: string;
+    ref: string;
+    type: string;
+    particulars: string;
+    amount: number;
+  } | null>(null);
   const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string>('cash');
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState<string>('');
   const [deadStockSearchQuery, setDeadStockSearchQuery] = useState<string>('');
@@ -1198,6 +1209,7 @@ export default function AccountingModule({
                     <th className="p-4">મોડ (Mode)</th>
                     <th className="p-4 text-emerald-600">આવક જમા (Debit/In)</th>
                     <th className="p-4 text-rose-600">જાવક ઉધાર (Credit/Out)</th>
+                    <th className="p-4 text-center">ક્રિયા (Action)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
@@ -1257,11 +1269,32 @@ export default function AccountingModule({
                       </td>
                       <td className="p-4 text-emerald-600 font-bold whitespace-nowrap">{entry.debit > 0 ? `₹ ${entry.debit.toLocaleString('en-IN')}` : '-'}</td>
                       <td className="p-4 text-rose-600 font-bold whitespace-nowrap">{entry.credit > 0 ? `₹ ${entry.credit.toLocaleString('en-IN')}` : '-'}</td>
+                      <td className="p-4 text-center whitespace-nowrap">
+                        {entry.id && (entry.type.includes('આવક') || entry.type.includes('ખર્ચ')) ? (
+                          <button
+                            type="button"
+                            onClick={() => setEntryToDelete({
+                              id: entry.id,
+                              ref: entry.ref,
+                              type: entry.type,
+                              particulars: entry.particulars,
+                              amount: entry.debit || entry.credit || 0
+                            })}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs font-bold inline-flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                            title="આ રોજમેળ એન્ટ્રી ડિલીટ કરો"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">રદ કરો</span>
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 text-xs">-</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {filteredDayBookEntries.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-400">
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
                         કોઈ વ્યવહારો મળ્યા નથી (No transactions found)
                       </td>
                     </tr>
@@ -1270,6 +1303,75 @@ export default function AccountingModule({
               </table>
             </div>
           </div>
+
+          {/* Delete Entry Confirmation Modal */}
+          {entryToDelete && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={`w-full max-w-md p-6 rounded-2xl border ${cardBg} shadow-2xl space-y-4`}
+              >
+                <div className="flex items-center gap-3 text-rose-600">
+                  <div className="p-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/80">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black">રોજમેળ એન્ટ્રી ડિલીટ કરો?</h3>
+                    <p className="text-xs text-slate-500">આ વ્યવહાર કાયમી માટે રદ કરવામાં આવશે.</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 text-xs border border-slate-200 dark:border-slate-700">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">સંદર્ભ / રસીદ નં:</span>
+                    <strong className="font-mono text-indigo-600 dark:text-indigo-400">{entryToDelete.ref}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">પ્રકાર:</span>
+                    <span className="font-bold">{entryToDelete.type}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">વિગત:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-right">{entryToDelete.particulars}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 font-black">
+                    <span>રકમ:</span>
+                    <span className="font-mono text-rose-600 text-sm">₹ {entryToDelete.amount.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-rose-600 font-medium bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-lg border border-rose-200 dark:border-rose-800">
+                  ⚠️ નોંધ: આ એન્ટ્રી ડિલીટ કરવાથી રોજમેળ, ખાતાવહી, કાચું સરવૈયું અને બેંક સિલકમાંથી તે આપમેળે બાદ થઈ જશે.
+                </p>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEntryToDelete(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    રદ રાખો (Cancel)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (entryToDelete.type.includes('આવક') && onDeleteReceipt) {
+                        onDeleteReceipt(entryToDelete.id);
+                      } else if (entryToDelete.type.includes('ખર્ચ') && onDeleteVoucher) {
+                        onDeleteVoucher(entryToDelete.id);
+                      }
+                      setEntryToDelete(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    હા, ડિલીટ કરો
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2233,6 +2335,7 @@ export default function AccountingModule({
             </span>
           </div>
 
+                    {/* Schedule VIII Balance Sheet T-Ledger Grid */}
           {/* Schedule VIII Balance Sheet T-Ledger Grid */}
           <div className={`border ${cardBg} rounded-2xl overflow-hidden shadow-sm`}>
             <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 text-xs">
@@ -2419,6 +2522,7 @@ export default function AccountingModule({
               </div>
             </div>
           </div>
+
 
           {/* Audit Certificate & Signatures */}
           <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4`}>

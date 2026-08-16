@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Search, Printer, Trash2, Eye, X, Award, ArrowLeft, Download, Loader2, Edit3 } from 'lucide-react';
+import { Plus, Search, Printer, Trash2, Eye, X, Award, ArrowLeft, Download, Loader2, Edit3, CheckCircle2 } from 'lucide-react';
 import { ExpenseVoucher, ExpenseCategory, BankAccount, TrustSettings } from '../types';
 import { downloadContainerAsPDF, printContainer } from '../utils/pdfPrint';
 
@@ -64,6 +64,9 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
   };
 
   // Form states
+  const [voucherDate, setVoucherDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [customVoucherNum, setCustomVoucherNum] = useState('');
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [defaultCategoryRenames] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem('default_category_renames');
     return saved ? JSON.parse(saved) : {};
@@ -79,6 +82,17 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
   const [chequeNumber, setChequeNumber] = useState('');
   const [remarksGuj, setRemarksGuj] = useState('');
   const [approvedByGuj, setApprovedByGuj] = useState('રમણલાલ શાહ (ટ્રસ્ટી)');
+
+  // Next voucher number preview
+  const nextVoucherSeq = (() => {
+    const highestNum = vouchers.reduce((max, v) => {
+      const match = v.voucherNumber?.match(/\d+$/);
+      const num = match ? parseInt(match[0], 10) : 0;
+      return Math.max(max, isNaN(num) ? 0 : num);
+    }, 0);
+    const seq = Math.max(highestNum + 1, vouchers.length + 1);
+    return `EX-2026-${String(seq).padStart(4, '0')}`;
+  })();
 
   const [customExpenseCats, setCustomExpenseCats] = useState<string[]>(() => {
     const saved = localStorage.getItem('custom_expense_categories');
@@ -132,6 +146,8 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
 
   const handleStartEdit = (v: ExpenseVoucher) => {
     setEditingVoucher(v);
+    setVoucherDate(v.date || new Date().toISOString().split('T')[0]);
+    setCustomVoucherNum(v.voucherNumber || '');
     setCategory(v.category);
     setAmount(String(v.amount));
     setPaidToGuj(v.paidToGuj);
@@ -145,42 +161,56 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) {
-      alert('મહેરબાની કરીને સાચી રકમ દાખલ કરો.');
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      alert('મહેરબાની કરીને સાચી રકમ (Amount) દાખલ કરો.');
       return;
     }
-    if (!paidToGuj) {
+    if (!paidToGuj.trim()) {
       alert('ચૂકવણી મેળવનારનું નામ દાખલ કરો.');
       return;
     }
 
+    if (paymentMode !== 'રોકડ (Cash)' && banks.length > 0 && !bankId) {
+      alert('મહેરબાની કરીને બેંક ખાતું પસંદ કરો.');
+      return;
+    }
+
+    const generatedNum = customVoucherNum.trim() || nextVoucherSeq;
+
     if (editingVoucher && onEditVoucher) {
       onEditVoucher({
         ...editingVoucher,
+        date: voucherDate,
         category,
-        amount: parseFloat(amount),
-        paidToGuj,
+        amount: parsedAmount,
+        paidToGuj: paidToGuj.trim(),
         paymentMode,
         bankId: paymentMode !== 'રોકડ (Cash)' ? bankId : undefined,
         chequeNumber: paymentMode === 'ચેક (Cheque)' ? chequeNumber : undefined,
         remarksGuj: remarksGuj || `${category} ખર્ચ ચુકવણી`,
-        approvedByGuj
+        approvedByGuj: approvedByGuj || currentUser.nameGuj
       });
       setEditingVoucher(null);
+      setSuccessNotice(`✓ ખર્ચ વાઉચર નં. ${editingVoucher.voucherNumber} સફળતાપૂર્વક અપડેટ થયું છે!`);
     } else {
-      onAddVoucher({
-        date: new Date().toISOString().split('T')[0],
+      (onAddVoucher as any)({
+        date: voucherDate || new Date().toISOString().split('T')[0],
+        voucherNumber: generatedNum,
         category,
-        amount: parseFloat(amount),
-        paidToGuj,
+        amount: parsedAmount,
+        paidToGuj: paidToGuj.trim(),
         paymentMode,
         bankId: paymentMode !== 'રોકડ (Cash)' ? bankId : undefined,
         chequeNumber: paymentMode === 'ચેક (Cheque)' ? chequeNumber : undefined,
         remarksGuj: remarksGuj || `${category} ખર્ચ ચુકવણી`,
-        approvedByGuj,
+        approvedByGuj: approvedByGuj || currentUser.nameGuj,
         operatorGuj: currentUser.nameGuj
       });
+      setSuccessNotice(`✓ નવું ખર્ચ વાઉચર નં. ${generatedNum} સફળતાપૂર્વક જનરેટ થઈ ગયું છે!`);
     }
+
+    setTimeout(() => setSuccessNotice(null), 5000);
 
     // Reset Form
     setAmount('');
@@ -188,6 +218,7 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
     setRemarksGuj('');
     setChequeNumber('');
     setBankId('');
+    setCustomVoucherNum('');
     setEditingVoucher(null);
     setShowAddForm(false);
   };
@@ -217,6 +248,19 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
         </div>
       </div>
 
+      {/* Notification banner */}
+      {successNotice && (
+        <div className="p-4 rounded-xl bg-rose-600 text-white font-bold text-sm shadow-md flex items-center justify-between animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5" />
+            <span>{successNotice}</span>
+          </div>
+          <button onClick={() => setSuccessNotice(null)} className="text-white hover:text-rose-100 p-1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Conditional Add Form or List View */}
       {showAddForm ? (
         <motion.div
@@ -225,26 +269,55 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
           className={`p-6 rounded-2xl border ${cardBg} shadow-sm max-w-4xl mx-auto`}
         >
           <div className="flex justify-between items-center pb-4 border-b border-slate-200 dark:border-slate-800 mb-6">
-            <h3 className="font-bold text-base text-rose-600 flex items-center gap-2">
-              <Award className="w-5 h-5" /> નવું ખર્ચ વાઉચર ફોર્મ (New Payment Voucher Entry)
-            </h3>
-            <button onClick={() => setShowAddForm(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+            <div>
+              <h3 className="font-bold text-base text-rose-600 flex items-center gap-2">
+                <Award className="w-5 h-5" /> {editingVoucher ? 'ખર્ચ વાઉચર સુધારો (Edit Payment Voucher)' : 'નવું ખર્ચ વાઉચર ફોર્મ (New Payment Voucher Entry)'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                વાઉચર ક્રમાંક: <span className="font-mono font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 px-2 py-0.5 rounded">{editingVoucher ? editingVoucher.voucherNumber : nextVoucherSeq}</span>
+              </p>
+            </div>
+            <button onClick={() => { setShowAddForm(false); setEditingVoucher(null); }} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Date */}
+              <div>
+                <label className="block text-xs font-bold mb-1.5">તારીખ (Voucher Date) *</label>
+                <input
+                  type="date"
+                  value={voucherDate}
+                  onChange={(e) => setVoucherDate(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl text-xs font-mono ${inputBg} focus:outline-rose-500`}
+                  required
+                />
+              </div>
+
+              {/* Voucher Number */}
+              <div>
+                <label className="block text-xs font-bold mb-1.5">વાઉચર નંબર (Voucher No.)</label>
+                <input
+                  type="text"
+                  placeholder={nextVoucherSeq}
+                  value={customVoucherNum}
+                  onChange={(e) => setCustomVoucherNum(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl text-xs font-mono font-bold ${inputBg} focus:outline-rose-500`}
+                />
+              </div>
+
               {/* Category */}
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-bold">ખર્ચનો પ્રકાર (Expense Category) *</label>
+                  <label className="block text-xs font-bold">ખર્ચનો પ્રકાર (Category) *</label>
                   <button
                     type="button"
                     onClick={handleAddNewCategory}
                     className="text-[11px] font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 flex items-center gap-1"
                   >
-                    + નવું ખાતું (Add Account)
+                    + નવું ખાતું
                   </button>
                 </div>
                 <select
@@ -259,14 +332,14 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
               </div>
 
               {/* Paid To */}
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-xs font-bold mb-1.5">કોને ચૂકવ્યા? (Paid To / Receiver Name) *</label>
                 <input
                   type="text"
-                  placeholder="મેળવનાર વ્યક્તિ કે સંસ્થાનું નામ"
+                  placeholder="દા.ત. સંજય ઇલેક્ટ્રિકલ્સ / ઓફિસ સ્ટેશનરી સ્ટોર / સ્ટાફ પગાર"
                   value={paidToGuj}
                   onChange={(e) => setPaidToGuj(e.target.value)}
-                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-rose-500`}
+                  className={`w-full p-2.5 rounded-xl text-xs font-bold ${inputBg} focus:outline-rose-500`}
                   required
                 />
               </div>
@@ -276,10 +349,10 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
                 <label className="block text-xs font-bold mb-1.5">ચુકવણી રકમ (Amount in ₹) *</label>
                 <input
                   type="number"
-                  placeholder="વાઉચર ચૂકવણી રકમ"
+                  placeholder="દા.ત. 1500"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-rose-500`}
+                  className={`w-full p-2.5 rounded-xl text-xs font-bold text-rose-600 ${inputBg} focus:outline-rose-500`}
                   required
                 />
               </div>
@@ -293,46 +366,10 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
                   className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-rose-500`}
                 >
                   <option value="રોકડ (Cash)">રોકડ (Cash)</option>
-                  <option value="બેંક ટ્રાન્સફર (Bank)">બેંક ટ્રાન્સફર (Bank Transfer)</option>
+                  <option value="બેંક ટ્રાન્સફર (Bank)">બેંક ટ્રાન્સફર (Bank Transfer / RTGS / UPI)</option>
                   <option value="ચેક (Cheque)">ચેક (Cheque)</option>
                 </select>
               </div>
-
-              {/* Bank accounts dropdown */}
-              {paymentMode !== 'રોકડ (Cash)' && (
-                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold mb-1.5">કઈ બેંકમાંથી ચૂકવ્યા? (Select Bank) *</label>
-                    <select
-                      value={bankId}
-                      onChange={(e) => setBankId(e.target.value)}
-                      className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-rose-500`}
-                      required
-                    >
-                      <option value="">-- બેંક ખાતું પસંદ કરો --</option>
-                      {banks.map(b => (
-                        <option key={b.id} value={b.id}>
-                          {b.bankNameGuj} - {b.accountNumber}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {paymentMode === 'ચેક (Cheque)' && (
-                    <div>
-                      <label className="block text-xs font-bold mb-1.5">ચેક નંબર (Cheque Number) *</label>
-                      <input
-                        type="text"
-                        placeholder="૬ આંકડાનો ચેક નંબર"
-                        value={chequeNumber}
-                        onChange={(e) => setChequeNumber(e.target.value)}
-                        className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-rose-500`}
-                        required
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* Approved By */}
               <div>
@@ -347,14 +384,48 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
                 />
               </div>
 
+              {/* Bank accounts dropdown if not Cash */}
+              {paymentMode !== 'રોકડ (Cash)' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5">કઈ બેંકમાંથી ચૂકવ્યા? (Select Bank) *</label>
+                    <select
+                      value={bankId}
+                      onChange={(e) => setBankId(e.target.value)}
+                      className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-rose-500`}
+                    >
+                      <option value="">-- બેંક ખાતું પસંદ કરો --</option>
+                      {banks.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.bankNameGuj} - {b.accountNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {paymentMode === 'ચેક (Cheque)' && (
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5">ચેક નંબર (Cheque Number)</label>
+                      <input
+                        type="text"
+                        placeholder="૬ આંકડાનો ચેક નંબર"
+                        value={chequeNumber}
+                        onChange={(e) => setChequeNumber(e.target.value)}
+                        className={`w-full p-2.5 rounded-xl text-xs ${inputBg} focus:outline-rose-500`}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* Remarks */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold mb-1.5">ખર્ચ હેતુની નોંધ (Remarks / Description) *</label>
+              <div className="md:col-span-3">
+                <label className="block text-xs font-bold mb-1.5">ખર્ચ હેતુની નોંધ (Remarks / Description)</label>
                 <textarea
-                  placeholder="ખર્ચ હેતુ અને વિગતોની બ્રીફ વિગતો ઉમેરો..."
+                  placeholder="ખર્ચ હેતુ અને વિગતોની બ્રીફ નોંધ દાખલ કરો..."
                   value={remarksGuj}
                   onChange={(e) => setRemarksGuj(e.target.value)}
-                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} h-20 focus:outline-rose-500`}
+                  className={`w-full p-2.5 rounded-xl text-xs ${inputBg} h-16 focus:outline-rose-500`}
                 />
               </div>
             </div>
@@ -362,16 +433,17 @@ export default function ExpenseModule({ vouchers, banks, onAddVoucher, onEditVou
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setShowAddForm(false)}
+                onClick={() => { setShowAddForm(false); setEditingVoucher(null); }}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-xl text-xs font-bold"
               >
                 રદ કરો (Cancel)
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm"
+                id="btn-save-expense-voucher"
+                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition-transform active:scale-95"
               >
-                વાઉચર સેવ કરો (Save Voucher)
+                <CheckCircle2 className="w-4 h-4" /> {editingVoucher ? 'વાઉચર અપડેટ કરો (Update)' : '✓ ખર્ચ વાઉચર જનરેટ કરો & સેવ કરો (Generate Voucher)'}
               </button>
             </div>
           </form>

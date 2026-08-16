@@ -1,14 +1,16 @@
 /// <reference types="vite/client" />
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { setLogLevel } from 'firebase/app';
 import { 
   getFirestore, 
+  initializeFirestore,
   doc, 
   setDoc, 
-  getDoc, 
+  getDoc,
+  deleteDoc,
   collection, 
   onSnapshot, 
-  getDocs, 
-  enableIndexedDbPersistence,
+  getDocs,
   Firestore
 } from 'firebase/firestore';
 
@@ -26,6 +28,11 @@ const firebaseConfig = {
 let app: any = null;
 let db: Firestore | null = null;
 
+// Suppress verbose SDK network logs during transient backend connection drops
+try {
+  setLogLevel('error');
+} catch (_) {}
+
 // Determine if the environment is a standalone offline PC Desktop / Electron installation
 export const isElectronOfflineApp = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -40,23 +47,40 @@ export const isOnlineCloudMode = (): boolean => {
   return !isElectronOfflineApp() && typeof navigator !== 'undefined' && navigator.onLine;
 };
 
-// Initialize Firebase only for online web/browser mode or when available
+// Helper to wrap promises with a timeout to prevent hanging when offline or network stalls
+const withTimeout = <T>(promise: Promise<T>, ms = 4000): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Firestore operation timeout')), ms))
+  ]);
+};
+
+// Initialize Firebase with long polling and suppressed connection warnings for sandboxed iframe environments
 try {
   if (!isElectronOfflineApp()) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     try {
-      // Initialize with provisioned database ID
-      db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-    } catch (dbErr) {
-      // Fallback to default database if named database throws
-      console.warn("Initializing default Firestore instance:", dbErr);
-      db = getFirestore(app);
+      db = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+      }, firebaseConfig.firestoreDatabaseId);
+    } catch (initErr) {
+      try {
+        db = initializeFirestore(app, {
+          experimentalForceLongPolling: true,
+        }, firebaseConfig.firestoreDatabaseId);
+      } catch (e2) {
+        try {
+          db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+        } catch (dbErr) {
+          db = getFirestore(app);
+        }
+      }
     }
   } else {
     console.log("🖥️ Running in PC Offline Desktop Mode. Google Firebase is paused to use local offline PC disk storage.");
   }
 } catch (e) {
-  console.warn("Firebase initialization warning (fallback to local PC storage):", e);
+  // Silent catch for offline mode
 }
 
 /**
@@ -81,16 +105,23 @@ export const saveTrustDatasetToFirebase = async (
   try {
     const docId = sanitizeFirestoreDocId(trustId);
     const docRef = doc(db, 'trust_records', docId);
-    
-    await setDoc(docRef, {
-      [datasetKey]: data,
+
+    // Strip undefined values which Firebase does not support
+    const cleanData = JSON.parse(JSON.stringify(data));
+
+    await withTimeout(setDoc(docRef, {
+      [datasetKey]: cleanData,
       last_updated: new Date().toISOString(),
       trust_name: trustId
-    }, { merge: true });
+    }, { merge: true }), 4000);
 
     return true;
-  } catch (err) {
-    console.error(`Firebase Cloud Save failed for [${datasetKey}]:`, err);
+  } catch (err: any) {
+    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
+      console.info(`[Offline sync pending] ${datasetKey} saved locally.`);
+    } else {
+      console.warn(`Firebase Cloud Save failed for [${datasetKey}]:`, err?.message || err);
+    }
     return false;
   }
 };
@@ -109,15 +140,19 @@ export const saveFullTrustToFirebase = async (
     const docId = sanitizeFirestoreDocId(trustId);
     const docRef = doc(db, 'trust_records', docId);
     
-    await setDoc(docRef, {
+    await withTimeout(setDoc(docRef, {
       ...payload,
       last_cloud_sync: new Date().toISOString(),
       trust_name: trustId
-    }, { merge: true });
+    }, { merge: true }), 5000);
 
     return true;
-  } catch (err) {
-    console.error(`Full Firebase Cloud Sync failed for [${trustId}]:`, err);
+  } catch (err: any) {
+    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
+      console.info(`[Offline state] Full Trust data saved to local storage.`);
+    } else {
+      console.warn(`Full Firebase Cloud Sync notice for [${trustId}]:`, err?.message || err);
+    }
     return false;
   }
 };
@@ -134,14 +169,18 @@ export const loadFullTrustFromFirebase = async (
   try {
     const docId = sanitizeFirestoreDocId(trustId);
     const docRef = doc(db, 'trust_records', docId);
-    const docSnap = await getDoc(docRef);
+    const docSnap = await withTimeout(getDoc(docRef), 4000);
     
     if (docSnap.exists()) {
       return docSnap.data();
     }
     return null;
-  } catch (err) {
-    console.error(`Firebase Cloud Fetch failed for [${trustId}]:`, err);
+  } catch (err: any) {
+    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
+      console.info(`[Offline state] Using local storage for ${trustId}.`);
+    } else {
+      console.warn(`Firebase Cloud Fetch notice for [${trustId}]:`, err?.message || err);
+    }
     return null;
   }
 };
@@ -150,8 +189,8 @@ export const loadFullTrustFromFirebase = async (
  * Save all global system licenses & users to Firestore for instant activation across devices
  */
 export const saveSystemMasterToFirebase = async (
-  licenses: any[],
-  users: any[]
+  licenses: any[] | undefined,
+  users: any[] | undefined
 ): Promise<boolean> => {
   if (!db || isElectronOfflineApp() || !navigator.onLine) {
     return false;
@@ -160,13 +199,26 @@ export const saveSystemMasterToFirebase = async (
     const licRef = doc(db, 'system_master', 'licenses');
     const userRef = doc(db, 'system_master', 'users');
 
-    await Promise.all([
-      setDoc(licRef, { list: licenses, updated_at: new Date().toISOString() }, { merge: true }),
-      setDoc(userRef, { list: users, updated_at: new Date().toISOString() }, { merge: true })
-    ]);
+    const promises = [];
+    if (licenses) {
+      const cleanLicenses = JSON.parse(JSON.stringify(licenses));
+      promises.push(setDoc(licRef, { list: cleanLicenses, updated_at: new Date().toISOString() }, { merge: true }));
+    }
+    if (users) {
+      const cleanUsers = JSON.parse(JSON.stringify(users));
+      promises.push(setDoc(userRef, { list: cleanUsers, updated_at: new Date().toISOString() }, { merge: true }));
+    }
+
+    if (promises.length > 0) {
+      await withTimeout(Promise.all(promises), 4000);
+    }
     return true;
-  } catch (err) {
-    console.error("Firebase System Master sync failed:", err);
+  } catch (err: any) {
+    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
+      console.info("[Offline state] System master saved to local storage.");
+    } else {
+      console.warn("Firebase System Master sync notice:", err?.message || err);
+    }
     return false;
   }
 };
@@ -182,14 +234,21 @@ export const loadSystemMasterFromFirebase = async (): Promise<{ licenses: any[];
     const licRef = doc(db, 'system_master', 'licenses');
     const userRef = doc(db, 'system_master', 'users');
 
-    const [licSnap, userSnap] = await Promise.all([getDoc(licRef), getDoc(userRef)]);
+    const [licSnap, userSnap] = await withTimeout(
+      Promise.all([getDoc(licRef), getDoc(userRef)]),
+      4000
+    );
     
     return {
       licenses: licSnap.exists() ? licSnap.data()?.list || [] : [],
       users: userSnap.exists() ? userSnap.data()?.list || [] : []
     };
-  } catch (err) {
-    console.error("Firebase System Master load failed:", err);
+  } catch (err: any) {
+    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
+      console.info("[Offline state] Loading system master from local storage.");
+    } else {
+      console.warn("Firebase System Master notice:", err?.message || err);
+    }
     return null;
   }
 };
@@ -213,12 +272,11 @@ export const subscribeToTrustFirebase = (
         onData(docSnap.data());
       }
     }, (error) => {
-      console.warn("Firebase snapshot listener error:", error);
+      console.warn("Firebase snapshot listener notice (fallback to local):", error?.message || error);
     });
 
     return unsubscribe;
   } catch (e) {
-    console.error("Subscribe to Firebase failed:", e);
     return () => {};
   }
 };
@@ -241,23 +299,37 @@ export const subscribeToSystemMasterFirebase = (
         currentLicenses = snap.data()?.list;
         onData({ licenses: currentLicenses, users: currentUsers });
       }
-    }, (err) => console.warn("Firebase Licenses listener error:", err));
+    }, (err) => console.warn("Firebase Licenses listener notice:", err?.message || err));
 
     const unsubUser = onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
         currentUsers = snap.data()?.list;
         onData({ licenses: currentLicenses, users: currentUsers });
       }
-    }, (err) => console.warn("Firebase Users listener error:", err));
+    }, (err) => console.warn("Firebase Users listener notice:", err?.message || err));
 
     return () => {
       unsubLic();
       unsubUser();
     };
   } catch (e) {
-    console.error("subscribeToSystemMasterFirebase failed:", e);
     return () => {};
   }
 };
 
 export { db, app };
+
+export const deleteTrustFromFirebase = async (trustName: string): Promise<boolean> => {
+  if (!db || isElectronOfflineApp() || !navigator.onLine) {
+    return false;
+  }
+  try {
+    const docId = sanitizeFirestoreDocId(trustName);
+    const docRef = doc(db, 'trust_records', docId);
+    await withTimeout(deleteDoc(docRef), 4000);
+    return true;
+  } catch (err: any) {
+    console.warn("Firebase Trust delete failed:", err?.message || err);
+    return false;
+  }
+};
