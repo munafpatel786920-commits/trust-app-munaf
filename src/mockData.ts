@@ -107,7 +107,10 @@ export const DEFAULT_TRUST_SETTINGS: TrustSettings = {
   financialYear: '૨૦૨૬-૨૭ (FY 2026-27)',
   receiptHeaderGuj: 'માનવ સેવા એ જ પ્રભુ સેવા - ૧૦૦% કરમુક્ત દાન પાવતી',
   logoUrl: '',
-  openingCashBalance: 0
+  openingCashBalance: 0,
+  isGstEnabled: false,
+  gstNumber: '',
+  defaultGstRate: 18
 };
 
 export const DEFAULT_THARAVS: AgendaTharav[] = [];

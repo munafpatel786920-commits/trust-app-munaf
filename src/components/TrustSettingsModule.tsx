@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Landmark, ShieldCheck, Save, RefreshCw, FileText, AlertCircle, Upload, Trash2, Image, RotateCcw, ShieldAlert, Lock, X, KeyRound, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Landmark, ShieldCheck, Save, RefreshCw, FileText, AlertCircle, Upload, Trash2, Image, RotateCcw, ShieldAlert, Lock, X, KeyRound, Eye, EyeOff, CheckCircle2, Percent, CheckSquare, Square } from 'lucide-react';
 import { TrustSettings } from '../types';
 
 interface TrustSettingsModuleProps {
@@ -41,6 +41,9 @@ export default function TrustSettingsModule({
   const [receiptHeaderGuj, setReceiptHeaderGuj] = useState(settings.receiptHeaderGuj);
   const [logoUrl, setLogoUrl] = useState(settings.logoUrl || '');
   const [openingCashBalance, setOpeningCashBalance] = useState<number>(settings.openingCashBalance ?? 150000);
+  const [isGstEnabled, setIsGstEnabled] = useState<boolean>(settings.isGstEnabled ?? false);
+  const [gstNumber, setGstNumber] = useState<string>(settings.gstNumber || '');
+  const [defaultGstRate, setDefaultGstRate] = useState<number>(settings.defaultGstRate ?? 18);
 
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,7 +101,10 @@ export default function TrustSettingsModule({
         financialYear,
         receiptHeaderGuj,
         logoUrl,
-        openingCashBalance
+        openingCashBalance,
+        isGstEnabled,
+        gstNumber,
+        defaultGstRate
       });
       setSaving(false);
       alert('ટ્રસ્ટ પ્રોફાઇલ, લોગો અને હિસાબી સેટિંગ્સ સફળતાપૂર્વક અપડેટ કરવામાં આવી છે.');
@@ -312,6 +318,115 @@ export default function TrustSettingsModule({
                   નોંધ: આ સૂત્ર/સ્લોગન પ્રિન્ટેડ દાન પાવતીમાં ટ્રસ્ટના નામની બરાબર ઉપર દેખાશે.
                 </span>
               </div>
+            </div>
+
+            {/* GST (Goods & Services Tax) Configuration */}
+            <div className={`p-6 rounded-2xl border ${isGstEnabled ? 'border-purple-300 dark:border-purple-800 bg-purple-50/20 dark:bg-purple-950/10' : cardBg} shadow-sm space-y-4 text-xs transition-all`}>
+              <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-sm text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                  <Percent className="w-4 h-4" /> જીએસટી સેટિંગ્સ (GST Configuration)
+                </h3>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                  isGstEnabled 
+                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 border border-purple-200 dark:border-purple-700' 
+                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                }`}>
+                  {isGstEnabled ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-purple-600 dark:text-purple-400" /> GST સક્રિય (Enabled)
+                    </>
+                  ) : (
+                    'GST બંધ / કરમુક્ત (Disabled)'
+                  )}
+                </span>
+              </div>
+
+              {/* Toggle Checkbox */}
+              <div 
+                onClick={() => !isReadOnly && setIsGstEnabled(!isGstEnabled)}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                  isGstEnabled 
+                    ? 'bg-purple-100/50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700' 
+                    : 'bg-slate-50 dark:bg-slate-850/60 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  id="checkbox-gst-toggle"
+                  checked={isGstEnabled}
+                  onChange={(e) => setIsGstEnabled(e.target.checked)}
+                  disabled={isReadOnly}
+                  className="w-4 h-4 mt-0.5 text-purple-600 rounded-md focus:ring-purple-500 cursor-pointer accent-purple-600"
+                />
+                <div className="flex-1">
+                  <label htmlFor="checkbox-gst-toggle" className="font-bold text-slate-800 dark:text-slate-200 block text-xs cursor-pointer">
+                    ખરીદી અને વેચાણ બિલિંગમાં GST લાગુ કરો (Enable GST on Bills)
+                  </label>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                    જો આ બોક્સ <strong>ટીક કરેલું હશે</strong> તો ખરીદી અને વેચાણ બિલિંગમાં GST ટકાવારી અને ગણતરી લાગુ થશે. જો <strong>ટીક નહીં હોય</strong> તો GST લાગુ નહીં થાય (0% / કરમુક્ત).
+                  </p>
+                </div>
+              </div>
+
+              {/* Conditional GST Details Form */}
+              {isGstEnabled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 pt-2 border-t border-purple-200 dark:border-purple-900/60"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold mb-1.5 text-slate-700 dark:text-slate-300">
+                        ટ્રસ્ટનો GSTIN નંબર (GSTIN / Tax ID) *
+                      </label>
+                      <input
+                        type="text"
+                        value={gstNumber}
+                        onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
+                        disabled={isReadOnly}
+                        placeholder="દા.ત. 24AAAAA0000A1Z5"
+                        maxLength={15}
+                        className={`w-full p-2.5 rounded-xl font-mono text-xs uppercase border outline-none transition-all ${inputBg}`}
+                      />
+                      <span className={`block text-[10px] ${textMuted} mt-1`}>
+                        ૧૫ અક્ષરનો માન્ય GSTIN દાખલ કરો.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold mb-1.5 text-slate-700 dark:text-slate-300">
+                        ડિફોલ્ટ GST ટકાવારી (Default GST Rate %)
+                      </label>
+                      <select
+                        value={defaultGstRate}
+                        onChange={(e) => setDefaultGstRate(Number(e.target.value))}
+                        disabled={isReadOnly}
+                        className={`w-full p-2.5 rounded-xl text-xs font-bold border outline-none transition-all ${inputBg}`}
+                      >
+                        <option value={0}>0% (કરમુક્ત / Nil Rate)</option>
+                        <option value={5}>5% (GST 5% - CGST 2.5% + SGST 2.5%)</option>
+                        <option value={12}>12% (GST 12% - CGST 6% + SGST 6%)</option>
+                        <option value={18}>18% (GST 18% - CGST 9% + SGST 9%)</option>
+                        <option value={28}>28% (GST 28% - CGST 14% + SGST 14%)</option>
+                      </select>
+                      <span className={`block text-[10px] ${textMuted} mt-1`}>
+                        નવા બિલમાં આપોઆપ આ GST ટકાવારી પસંદ થશે.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-purple-100/60 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 text-[11px] text-purple-900 dark:text-purple-300 space-y-1">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <Percent className="w-3.5 h-3.5" /> GST ઇન્વોઇસિંગ સક્રિય થયેલ છે:
+                    </p>
+                    <p className="text-[10px] text-purple-800 dark:text-purple-400">
+                      વેચાણ અને ખરીદીના બિલોમાં Subtotal, CGST, SGST અને Net Amount સાથે ટેક્સ ઇન્વોઇસ જનરેટ થશે.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
           </div>

@@ -269,6 +269,9 @@ export interface TrustSettings {
   receiptHeaderGuj: string;
   logoUrl?: string;
   openingCashBalance?: number;
+  isGstEnabled?: boolean;
+  gstNumber?: string;
+  defaultGstRate?: number;
 }
 
 export interface InventoryItem {
@@ -293,10 +296,21 @@ export interface PurchaseBill {
   itemNameGuj: string;
   quantity: number;
   rate: number;
+  subtotal?: number;
+  gstRate?: number;
+  gstAmount?: number;
+  isGstBill?: boolean;
   totalAmount: number;
-  paymentMode: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
+  paymentMode: 'રોકડ (Cash)' | 'ઉધાર (Credit)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
   bankId?: string;
   remarksGuj?: string;
+  paymentStatus?: 'ચૂકવેલ (Paid)' | 'ઉધાર / બાકી (Unpaid / Credit)' | 'અંશત: ચૂકવેલ (Partially Paid)';
+  paidAmount?: number;
+  dueDate?: string;
+  settlementDate?: string;
+  settlementMode?: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
+  settlementBankId?: string;
+  settlementRemarksGuj?: string;
 }
 
 export interface SalesBill {
@@ -308,9 +322,20 @@ export interface SalesBill {
   itemNameGuj: string;
   quantity: number;
   rate: number;
+  subtotal?: number;
+  gstRate?: number;
+  gstAmount?: number;
+  isGstBill?: boolean;
   totalAmount: number;
-  paymentMode: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
+  paymentMode: 'રોકડ (Cash)' | 'ઉધાર (Credit)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
   bankId?: string;
   remarksGuj?: string;
+  paymentStatus?: 'ચૂકવેલ (Paid)' | 'ઉધાર / બાકી (Unpaid / Credit)' | 'અંશત: ચૂકવેલ (Partially Paid)';
+  paidAmount?: number;
+  dueDate?: string;
+  settlementDate?: string;
+  settlementMode?: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
+  settlementBankId?: string;
+  settlementRemarksGuj?: string;
 }
 

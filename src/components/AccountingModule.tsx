@@ -60,8 +60,8 @@ export default function AccountingModule({
   const [showCarryForwardModal, setShowCarryForwardModal] = useState(false);
   const [showOpeningModal, setShowOpeningModal] = useState(false);
   const [newFyInput, setNewFyInput] = useState('૨૦૨૭-૨૮ (FY 2027-28)');
-  const [daybookModeFilter, setDaybookModeFilter] = useState<'all' | 'cash' | 'bank'>('all');
-  const [daybookCategoryFilter, setDaybookCategoryFilter] = useState<'all' | 'fee' | 'share' | 'loan' | 'donation' | 'expense'>('all');
+  const [daybookModeFilter, setDaybookModeFilter] = useState<'all' | 'cash' | 'bank' | 'credit'>('all');
+  const [daybookCategoryFilter, setDaybookCategoryFilter] = useState<'all' | 'fee' | 'share' | 'loan' | 'donation' | 'sales' | 'purchase' | 'expense'>('all');
   const [daybookSearchQuery, setDaybookSearchQuery] = useState('');
   const [pnlViewMode, setPnlViewMode] = useState<'category' | 'itemized'>('category');
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -83,6 +83,16 @@ export default function AccountingModule({
   // Purchases, Sales and Stock Calculations
   const totalPurchasesAmount = (purchaseBills || []).reduce((sum, p) => sum + p.totalAmount, 0);
   const totalSalesAmount = (salesBills || []).reduce((sum, s) => sum + s.totalAmount, 0);
+
+  const totalUdharSalesReceivables = (salesBills || []).reduce((sum, s) => {
+    const pending = s.totalAmount - (s.paidAmount || 0);
+    return sum + (pending > 0 ? pending : 0);
+  }, 0);
+
+  const totalUdharPurchasePayables = (purchaseBills || []).reduce((sum, p) => {
+    const pending = p.totalAmount - (p.paidAmount || 0);
+    return sum + (pending > 0 ? pending : 0);
+  }, 0);
 
   const openingStockValue = (inventoryItems || []).reduce((sum, item) => sum + (item.openingStock * (item.purchasePrice || 0)), 0);
   const closingStockValue = (inventoryItems || []).reduce((sum, item) => sum + (item.currentStock * (item.purchasePrice || 0)), 0);
@@ -141,6 +151,10 @@ export default function AccountingModule({
         displayCategory = 'સભાસદ શેર મૂડી';
       } else if (r.category?.includes('લોન') || r.category?.includes('Loan')) {
         displayCategory = 'સભાસદ લોન હપ્તો';
+      } else if (r.category?.includes('વસૂલાત') || r.category?.includes('Udhar Collection')) {
+        displayCategory = 'ઉધાર વેચાણ વસૂલાત';
+      } else if (r.category?.includes('વેચાણ') || r.category?.includes('Sales')) {
+        displayCategory = 'પ્રોડક્ટ વેચાણ';
       }
 
       return {
@@ -158,19 +172,28 @@ export default function AccountingModule({
       };
     }),
     ...loanRepaymentEntries,
-    ...activeVouchers.map(v => ({
-      id: v.id,
-      date: v.date,
-      ref: v.voucherNumber,
-      particulars: v.paidToGuj,
-      remarks: v.remarksGuj,
-      type: 'ખર્ચ (Expense)',
-      rawCategory: v.category,
-      category: v.category ? v.category.replace(/\s*\(.*?\)\s*/g, '').trim() : 'ખર્ચ',
-      paymentMode: v.paymentMode || 'રોકડ (Cash)',
-      debit: 0,
-      credit: v.amount
-    })),
+    ...activeVouchers.map(v => {
+      let displayCategory = v.category ? v.category.replace(/\s*\(.*?\)\s*/g, '').trim() : 'ખર્ચ';
+      if (v.category?.includes('ખરીદી ચુકવણી') || v.category?.includes('Udhar Settlement')) {
+        displayCategory = 'ઉધાર ખરીદી ચૂકવણી';
+      } else if (v.category?.includes('ખરીદી') || v.category?.includes('Purchase')) {
+        displayCategory = 'પ્રોડક્ટ ખરીદી';
+      }
+
+      return {
+        id: v.id,
+        date: v.date,
+        ref: v.voucherNumber,
+        particulars: v.paidToGuj,
+        remarks: v.remarksGuj,
+        type: 'ખર્ચ (Expense)',
+        rawCategory: v.category,
+        category: displayCategory,
+        paymentMode: v.paymentMode || 'રોકડ (Cash)',
+        debit: 0,
+        credit: v.amount
+      };
+    }),
     ...activeRecon
       .filter(tx => tx.docType === 'ડિપોઝીટ' || tx.docType === 'વિથડ્રોઅલ' || tx.docType === 'રોકડ ડિપોઝીટ' || tx.docType === 'રોકડ ઉપાડ')
       .map(tx => {
@@ -188,7 +211,39 @@ export default function AccountingModule({
           debit: isDeposit ? 0 : tx.amount,
           credit: isDeposit ? tx.amount : 0
         };
-      })
+      }),
+    // Udhar Purchase Bills: Supplier Credited (સપ્લાયર ખાતે જમા / જમા બાજુ / Debit Inflow column)
+    ...(purchaseBills || [])
+      .filter(p => p.paymentMode.includes('ઉધાર') || p.paymentMode.includes('Credit') || p.paymentStatus?.includes('ઉધાર') || p.paymentStatus?.includes('અંશત'))
+      .map(p => ({
+        id: `pbill-${p.id}`,
+        date: p.date,
+        ref: p.billNumber,
+        particulars: `ઉધાર ખરીદી બિલ: ${p.supplierNameGuj} (${p.itemNameGuj})`,
+        remarks: p.remarksGuj || `જથ્થો: ${p.quantity} | કુલ બિલ: ₹${p.totalAmount} | બાકી દેવું: ₹${p.totalAmount - (p.paidAmount || 0)}`,
+        type: 'ઉધાર ખરીદી (Credit Purchase)',
+        rawCategory: 'પ્રોડક્ટ ખરીદી (Udhar Purchase)',
+        category: 'ઉધાર ખરીદી બિલ',
+        paymentMode: p.paymentMode || 'ઉધાર (Credit)',
+        debit: p.totalAmount, // સપ્લાયર ખાતે જમા (Creditor Jama Entry)
+        credit: 0
+      })),
+    // Udhar Sales Bills: Customer Debited (ગ્રાહક ખાતે ઉધાર / ઉધાર બાજુ / Credit Outflow column)
+    ...(salesBills || [])
+      .filter(s => s.paymentMode.includes('ઉધાર') || s.paymentMode.includes('Credit') || s.paymentStatus?.includes('ઉધાર') || s.paymentStatus?.includes('અંશત'))
+      .map(s => ({
+        id: `sbill-${s.id}`,
+        date: s.date,
+        ref: s.billNumber,
+        particulars: `ઉધાર વેચાણ બિલ: ${s.customerNameGuj} (${s.itemNameGuj})`,
+        remarks: s.remarksGuj || `જથ્થો: ${s.quantity} | કુલ બિલ: ₹${s.totalAmount} | બાકી લેણું: ₹${s.totalAmount - (s.paidAmount || 0)}`,
+        type: 'ઉધાર વેચાણ (Credit Sales)',
+        rawCategory: 'પ્રોડક્ટ વેચાણ (Udhar Sales)',
+        category: 'ઉધાર વેચાણ બિલ',
+        paymentMode: s.paymentMode || 'ઉધાર (Credit)',
+        debit: 0,
+        credit: s.totalAmount // ગ્રાહક ખાતે ઉધાર (Debtor Udhar Entry)
+      }))
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   const filteredDayBookEntries = dayBookEntries.filter(entry => {
@@ -197,6 +252,9 @@ export default function AccountingModule({
       return false;
     }
     if (daybookModeFilter === 'bank' && !(entry.paymentMode.includes('બેંક') || entry.paymentMode.includes('ચેક') || entry.paymentMode.includes('Contra'))) {
+      return false;
+    }
+    if (daybookModeFilter === 'credit' && !(entry.paymentMode.includes('ઉધાર') || entry.paymentMode.includes('Credit') || entry.category.includes('ઉધાર') || entry.rawCategory?.includes('Udhar'))) {
       return false;
     }
 
@@ -210,15 +268,25 @@ export default function AccountingModule({
     } else if (daybookCategoryFilter === 'loan') {
       const isLoan = entry.category.includes('લોન') || entry.rawCategory?.includes('લોન') || entry.rawCategory?.includes('Loan') || entry.category.includes('EMI') || entry.rawCategory?.includes('EMI') || entry.category.includes('હપ્તો') || entry.rawCategory?.includes('હપ્તો');
       if (!isLoan) return false;
+    } else if (daybookCategoryFilter === 'sales') {
+      const isSales = entry.category.includes('વેચાણ') || entry.rawCategory?.includes('વેચાણ') || entry.rawCategory?.includes('Sales') || entry.type.includes('વેચાણ');
+      if (!isSales) return false;
+    } else if (daybookCategoryFilter === 'purchase') {
+      const isPurchase = entry.category.includes('ખરીદી') || entry.rawCategory?.includes('ખરીદી') || entry.rawCategory?.includes('Purchase') || entry.type.includes('ખરીદી');
+      if (!isPurchase) return false;
     } else if (daybookCategoryFilter === 'donation') {
       const isDonation = entry.type.includes('આવક') && !(
         entry.category.includes('પ્રવેશ ફી') || entry.rawCategory?.includes('પ્રવેશ ફી') ||
         entry.category.includes('શેર') || entry.rawCategory?.includes('શેર') ||
-        entry.category.includes('લોન') || entry.rawCategory?.includes('લોન')
+        entry.category.includes('લોન') || entry.rawCategory?.includes('લોન') ||
+        entry.category.includes('વેચાણ') || entry.rawCategory?.includes('વેચાણ')
       );
       if (!isDonation) return false;
     } else if (daybookCategoryFilter === 'expense') {
-      if (!entry.type.includes('ખર્ચ')) return false;
+      const isExpense = entry.type.includes('ખર્ચ') && !(
+        entry.category.includes('ખરીદી') || entry.rawCategory?.includes('ખરીદી')
+      );
+      if (!isExpense) return false;
     }
 
     // Search query filter
@@ -240,8 +308,8 @@ export default function AccountingModule({
   const openingBankBalances = banks.reduce((sum, b) => sum + (b.openingBalance !== undefined ? b.openingBalance : b.balance), 0);
   const initialTrustFund = initialCash + openingBankBalances + totalAssetVal + openingStockValue;
 
-  const totalLiabilities = initialTrustFund + totalIncome - totalExpense + closingStockValue - openingStockValue;
-  const totalAssets = finalCash + totalBankBalance + totalAssetVal + closingStockValue;
+  const totalLiabilities = initialTrustFund + totalIncome - totalExpense + closingStockValue - openingStockValue + totalUdharPurchasePayables;
+  const totalAssets = finalCash + totalBankBalance + totalAssetVal + closingStockValue + totalUdharSalesReceivables;
   const isBalanceMatched = Math.abs(totalLiabilities - totalAssets) < 1;
 
   // Custom categories state synced with localStorage
@@ -288,8 +356,13 @@ export default function AccountingModule({
   const renamedIncomeCats = ALL_INCOME_CATS.map(cat => defaultCategoryRenames[cat] || cat);
   const renamedExpenseCats = ALL_EXPENSE_CATS.map(cat => defaultCategoryRenames[cat] || cat);
 
-  const incomeCategories = Array.from(new Set([...renamedIncomeCats, ...customIncomeCats, ...activeReceipts.map(r => r.category)])).filter(Boolean);
-  const expenseCategories = Array.from(new Set([...renamedExpenseCats, ...customExpenseCats, ...activeVouchers.map(v => v.category)])).filter(Boolean);
+  const incomeCategories = Array.from(new Set([...renamedIncomeCats, ...customIncomeCats, ...activeReceipts.map(r => r.category)]))
+    .filter(Boolean)
+    .filter(cat => !cat.includes('વેચાણ') && !cat.toLowerCase().includes('sales'));
+
+  const expenseCategories = Array.from(new Set([...renamedExpenseCats, ...customExpenseCats, ...activeVouchers.map(v => v.category)]))
+    .filter(Boolean)
+    .filter(cat => !cat.includes('ખરીદી') && !cat.toLowerCase().includes('purchase'));
 
   const getOriginalDefaultIncomeCat = (currentName: string) => {
     if (ALL_INCOME_CATS.includes(currentName)) {
@@ -722,11 +795,114 @@ export default function AccountingModule({
         debit: a.purchaseAmount,
         credit: 0
       }] : [];
+    } else if (accountKey === 'purchases') {
+      title = 'પ્રોડક્ટ ખરીદી ખાતું (Product Purchases Account)';
+      typeLabel = 'વેપાર ખર્ચ ખાતું (Purchase Account)';
+      opening = 0;
+
+      entries = (purchaseBills || []).map(p => ({
+        date: p.date,
+        ref: p.billNumber,
+        particulars: `સપ્લાયર: ${p.supplierNameGuj} - ${p.itemNameGuj} (જથ્ધો: ${p.quantity})`,
+        mode: p.paymentMode || 'રોકડ (Cash)',
+        debit: p.totalAmount,
+        credit: 0
+      })).sort((a, b) => a.date.localeCompare(b.date));
+    } else if (accountKey === 'sales') {
+      title = 'પ્રોડક્ટ વેચાણ ખાતું (Product Sales Account)';
+      typeLabel = 'વેપાર આવક ખાતું (Sales Account)';
+      opening = 0;
+
+      entries = (salesBills || []).map(s => ({
+        date: s.date,
+        ref: s.billNumber,
+        particulars: `ગ્રાહક: ${s.customerNameGuj} - ${s.itemNameGuj} (જથ્ધો: ${s.quantity})`,
+        mode: s.paymentMode || 'રોકડ (Cash)',
+        debit: 0,
+        credit: s.totalAmount
+      })).sort((a, b) => a.date.localeCompare(b.date));
+    } else if (accountKey === 'udhar_debtors') {
+      title = 'ઉધાર ગ્રાહકો લેણું ખાતું (Sundry Debtors - Udhar Sales Ledger)';
+      typeLabel = 'ચાલુ મિલકત / બાકી લેણું (Debtors Asset)';
+      opening = 0;
+
+      const debtorEntries: Array<{
+        date: string;
+        ref: string;
+        particulars: string;
+        mode: string;
+        debit: number;
+        credit: number;
+      }> = [];
+
+      (salesBills || []).forEach(s => {
+        const isUdhar = s.paymentMode.includes('ઉધાર') || s.paymentMode.includes('Credit') || (s.paidAmount !== undefined && s.paidAmount < s.totalAmount) || (s.paymentStatus && s.paymentStatus !== 'ચૂકવેલ (Paid)');
+        if (isUdhar) {
+          debtorEntries.push({
+            date: s.date,
+            ref: s.billNumber,
+            particulars: `ઉધાર વેચાણ: ${s.customerNameGuj} - ${s.itemNameGuj} (જથ્ધો: ${s.quantity})`,
+            mode: s.paymentMode,
+            debit: s.totalAmount,
+            credit: 0
+          });
+          if (s.paidAmount && s.paidAmount > 0) {
+            debtorEntries.push({
+              date: s.settlementDate || s.date,
+              ref: `${s.billNumber}-RCP`,
+              particulars: `ઉધાર વસૂલાત / ચુકવણી જમા: ${s.customerNameGuj}`,
+              mode: s.settlementMode || 'રોકડ (Cash)',
+              debit: 0,
+              credit: s.paidAmount
+            });
+          }
+        }
+      });
+      entries = debtorEntries.sort((a, b) => a.date.localeCompare(b.date));
+    } else if (accountKey === 'udhar_creditors') {
+      title = 'ઉધાર સપ્લાયરો દેવું ખાતું (Sundry Creditors - Udhar Purchase Ledger)';
+      typeLabel = 'ચાલુ જવાબદારી / બાકી દેવું (Creditors Liability)';
+      opening = 0;
+
+      const creditorEntries: Array<{
+        date: string;
+        ref: string;
+        particulars: string;
+        mode: string;
+        debit: number;
+        credit: number;
+      }> = [];
+
+      (purchaseBills || []).forEach(p => {
+        const isUdhar = p.paymentMode.includes('ઉધાર') || p.paymentMode.includes('Credit') || (p.paidAmount !== undefined && p.paidAmount < p.totalAmount) || (p.paymentStatus && p.paymentStatus !== 'ચૂકવેલ (Paid)');
+        if (isUdhar) {
+          creditorEntries.push({
+            date: p.date,
+            ref: p.billNumber,
+            particulars: `ઉધાર ખરીદી: ${p.supplierNameGuj} - ${p.itemNameGuj} (જથ્ધો: ${p.quantity})`,
+            mode: p.paymentMode,
+            debit: 0,
+            credit: p.totalAmount
+          });
+          if (p.paidAmount && p.paidAmount > 0) {
+            creditorEntries.push({
+              date: p.settlementDate || p.date,
+              ref: `${p.billNumber}-VCH`,
+              particulars: `ઉધાર ચુકવણી જમા: ${p.supplierNameGuj}`,
+              mode: p.settlementMode || 'રોકડ (Cash)',
+              debit: p.paidAmount,
+              credit: 0
+            });
+          }
+        }
+      });
+      entries = creditorEntries.sort((a, b) => a.date.localeCompare(b.date));
     }
 
+    const isCreditNormalAccount = accountKey.startsWith('inc-') || accountKey === 'sales' || accountKey === 'udhar_creditors';
     let running = opening;
     const entriesWithBalance = entries.map(e => {
-      if (accountKey.startsWith('inc-')) {
+      if (isCreditNormalAccount) {
         running += e.credit - e.debit;
       } else {
         running += e.debit - e.credit;
@@ -739,7 +915,7 @@ export default function AccountingModule({
 
     const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
     const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
-    const closing = accountKey.startsWith('inc-') ? opening + totalCredit - totalDebit : opening + totalDebit - totalCredit;
+    const closing = isCreditNormalAccount ? opening + totalCredit - totalDebit : opening + totalDebit - totalCredit;
 
     return {
       title,
@@ -1076,7 +1252,7 @@ export default function AccountingModule({
             <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-3">
               {/* Payment Mode Filters */}
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-                <span className="text-slate-500 mr-1 whitespace-nowrap">મોડ ફિFilter:</span>
+                <span className="text-slate-500 mr-1 whitespace-nowrap">મોડ ફિલ્ટર:</span>
                 <button
                   type="button"
                   onClick={() => setDaybookModeFilter('all')}
@@ -1110,6 +1286,17 @@ export default function AccountingModule({
                 >
                   🏦 ફક્ત બેંક / ચેક ({dayBookEntries.filter(e => e.paymentMode.includes('બેંક') || e.paymentMode.includes('ચેક') || e.paymentMode.includes('Contra')).length})
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setDaybookModeFilter('credit')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                    daybookModeFilter === 'credit'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-50'
+                  }`}
+                >
+                  📝 ફક્ત ઉધાર (Credit) ({dayBookEntries.filter(e => e.paymentMode.includes('ઉધાર') || e.paymentMode.includes('Credit') || e.category.includes('ઉધાર') || e.rawCategory?.includes('Udhar')).length})
+                </button>
               </div>
 
               {/* Search Bar */}
@@ -1127,7 +1314,7 @@ export default function AccountingModule({
 
             {/* Category Quick Filters */}
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-xs font-bold">
-              <span className="text-slate-500 text-[11px] mr-1">શ્રેણી ફિFilter:</span>
+              <span className="text-slate-500 text-[11px] mr-1">શ્રેણી ફિલ્ટર:</span>
               <button
                 type="button"
                 onClick={() => setDaybookCategoryFilter('all')}
@@ -1141,11 +1328,33 @@ export default function AccountingModule({
               </button>
               <button
                 type="button"
+                onClick={() => setDaybookCategoryFilter('sales')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                  daybookCategoryFilter === 'sales'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                }`}
+              >
+                🛍️ વેચાણ & વસૂલાત
+              </button>
+              <button
+                type="button"
+                onClick={() => setDaybookCategoryFilter('purchase')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                  daybookCategoryFilter === 'purchase'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                }`}
+              >
+                📦 ખરીદી & ચૂકવણી
+              </button>
+              <button
+                type="button"
                 onClick={() => setDaybookCategoryFilter('fee')}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
                   daybookCategoryFilter === 'fee'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
                 }`}
               >
                 🏷️ સભાસદ પ્રવેશ ફી
@@ -1207,8 +1416,8 @@ export default function AccountingModule({
                     <th className="p-4">વિગત (Particulars)</th>
                     <th className="p-4">શ્રેણી (Category)</th>
                     <th className="p-4">મોડ (Mode)</th>
-                    <th className="p-4 text-emerald-600">આવક જમા (Debit/In)</th>
-                    <th className="p-4 text-rose-600">જાવક ઉધાર (Credit/Out)</th>
+                    <th className="p-4 text-emerald-600">આવક / જમા (Inflow / ₹)</th>
+                    <th className="p-4 text-rose-600">જાવક / ઉધાર (Outflow / ₹)</th>
                     <th className="p-4 text-center">ક્રિયા (Action)</th>
                   </tr>
                 </thead>
@@ -1226,7 +1435,23 @@ export default function AccountingModule({
                         )}
                       </td>
                       <td className="p-4 whitespace-nowrap">
-                        {entry.category.includes('પ્રવેશ ફી') || entry.rawCategory?.includes('Membership Fee') ? (
+                        {entry.category.includes('ઉધાર વેચાણ બિલ') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-xs">
+                            🏷️ ઉધાર વેચાણ બિલ (Debit)
+                          </span>
+                        ) : entry.category.includes('ઉધાર વેચાણ વસૂલાત') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+                            💵 ઉધાર વસૂલાત પાવતી
+                          </span>
+                        ) : entry.category.includes('ઉધાર ખરીદી બિલ') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-800 shadow-xs">
+                            📦 ઉધાર ખરીદી બિલ (Credit)
+                          </span>
+                        ) : entry.category.includes('ઉધાર ખરીદી ચૂકવણી') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200 border border-rose-300 dark:border-rose-800 shadow-xs">
+                            💸 ઉધાર ખરીદી ચૂકવણી
+                          </span>
+                        ) : entry.category.includes('પ્રવેશ ફી') || entry.rawCategory?.includes('Membership Fee') ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shadow-xs">
                             🏷️ સભાસદ પ્રવેશ ફી
                           </span>
@@ -1253,7 +1478,11 @@ export default function AccountingModule({
                         )}
                       </td>
                       <td className="p-4 whitespace-nowrap">
-                        {entry.paymentMode.includes('રોકડ') ? (
+                        {entry.paymentMode.includes('ઉધાર') || entry.paymentMode.includes('Credit') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            📝 ઉધાર (Credit)
+                          </span>
+                        ) : entry.paymentMode.includes('રોકડ') ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                             💵 રોકડ (Cash)
                           </span>
@@ -1300,6 +1529,26 @@ export default function AccountingModule({
                     </tr>
                   )}
                 </tbody>
+                {filteredDayBookEntries.length > 0 && (
+                  <tfoot className={`font-black ${darkMode ? 'bg-slate-800/90 border-t-2 border-slate-700' : 'bg-slate-100/90 border-t-2 border-slate-300'}`}>
+                    <tr>
+                      <td colSpan={5} className="p-4 text-right uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                        કુલ સરવાળો (Total Summary):
+                      </td>
+                      <td className="p-4 text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
+                        ₹ {filteredDayBookEntries.reduce((sum, e) => sum + (e.debit || 0), 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="p-4 text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
+                        ₹ {filteredDayBookEntries.reduce((sum, e) => sum + (e.credit || 0), 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          {filteredDayBookEntries.length} એન્ટ્રી
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
@@ -1420,6 +1669,10 @@ export default function AccountingModule({
                       🏢 મિલકત ખાતું - {a.nameGuj}
                     </option>
                   ))}
+                </optgroup>
+                <optgroup label="🛍️ વેપાર ખાતાઓ (Trading Accounts - All Cash, Udhar, Bank & Cheque)">
+                  <option value="purchases">🛍️ પ્રોડક્ટ ખરીદી ખાતું (Product Purchases Account - All Modes)</option>
+                  <option value="sales">📈 પ્રોડક્ટ વેચાણ ખાતું (Product Sales Account - All Modes)</option>
                 </optgroup>
               </select>
 
@@ -1639,7 +1892,6 @@ export default function AccountingModule({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Cash Account Card */}
                 {(() => {
                   const d = getLedgerDetails('cash');
                   return (
@@ -1789,6 +2041,63 @@ export default function AccountingModule({
                     </div>
                   );
                 })}
+
+                {/* Trading Purchase and Sales Account Cards */}
+                {(() => {
+                  const dPur = getLedgerDetails('purchases');
+                  const dSal = getLedgerDetails('sales');
+                  return (
+                    <>
+                      {/* Product Purchases Card */}
+                      <div
+                        onClick={() => setSelectedLedgerAccount('purchases')}
+                        className={`p-4 rounded-2xl border ${cardBg} hover:border-amber-500 hover:shadow-md transition-all cursor-pointer space-y-3`}
+                      >
+                        <div className="flex justify-between items-center border-b pb-2">
+                          <span className="font-black text-sm text-slate-800 dark:text-slate-100 truncate">
+                            🛍️ પ્રોડક્ટ ખરીદી ખાતું (Purchases)
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            ખરીદી
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-400">કુલ ખરીદી રકમ (Cash, Udhar, Bank, Cheque):</span>
+                          <strong className="font-mono text-amber-600 font-black text-sm">₹ {dPur.closing.toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div className="pt-2 border-t text-right">
+                          <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center justify-end gap-1">
+                            લેજર ખોલો <ArrowRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Product Sales Card */}
+                      <div
+                        onClick={() => setSelectedLedgerAccount('sales')}
+                        className={`p-4 rounded-2xl border ${cardBg} hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer space-y-3`}
+                      >
+                        <div className="flex justify-between items-center border-b pb-2">
+                          <span className="font-black text-sm text-slate-800 dark:text-slate-100 truncate">
+                            📈 પ્રોડક્ટ વેચાણ ખાતું (Sales)
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            વેચાણ
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-400">કુલ વેચાણ આવક (Cash, Udhar, Bank, Cheque):</span>
+                          <strong className="font-mono text-emerald-600 font-black text-sm">₹ {dSal.closing.toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div className="pt-2 border-t text-right">
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
+                            લેજર ખોલો <ArrowRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -2421,8 +2730,12 @@ export default function AccountingModule({
                   {/* Liabilities & Provisions Block */}
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
                     <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
-                      ૩. ચાલુ દેવાં અને પ્રોવિઝન (Current Liabilities)
+                      ૩. ચાલુ દેવાં અને સપ્લાયરો બાકી દેવું (Current Liabilities & Creditors)
                     </span>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                      <span>ઉધાર ખરીદી બાકી દેવું (Sundry Creditors - Udhar Purchases):</span>
+                      <span className="font-mono font-bold text-rose-600">₹ {totalUdharPurchasePayables.toLocaleString('en-IN')}</span>
+                    </div>
                     <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
                       <span>ઓડિટ ફી પ્રોવિઝન (Audit Fee Payable):</span>
                       <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ ૦</span>
@@ -2509,6 +2822,17 @@ export default function AccountingModule({
                     <span className="text-[10px] text-slate-500 block">
                       સ્ટોક કિંમત ખરીદી મૂલ્ય અનુસાર ગણતરી કરવામાં આવી છે.
                     </span>
+                  </div>
+
+                  {/* Sundry Debtors Asset Block */}
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <span className="font-black text-slate-800 dark:text-slate-100 block text-xs border-b pb-1">
+                      ૫. ઉધાર ગ્રાહકો બાકી લેણું (Sundry Debtors - Udhar Sales Asset)
+                    </span>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
+                      <span>વસૂલવાનું બાકી વેચાણ લેણું (Outstanding Sales Receivables):</span>
+                      <span className="font-mono font-bold text-indigo-600">₹ {totalUdharSalesReceivables.toLocaleString('en-IN')}</span>
+                    </div>
                   </div>
                 </div>
 

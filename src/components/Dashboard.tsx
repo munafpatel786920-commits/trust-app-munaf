@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   LayoutDashboard,
+  LayoutGrid,
   TrendingUp, 
   TrendingDown, 
   Landmark, 
@@ -204,80 +205,86 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                   આવક પાવતીઓ, ખર્ચ વાઉચર્સ, એક્ટિવ બેંક ખાતાઓ અને મિલકત વ્યવસ્થાપન
                 </p>
               </div>
-              <span className="text-[10px] font-extrabold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
-                ૬ મોડ્યુલ્સ
+              <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
+                કુલ ૬ મોડ્યુલ્સ
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-6 py-2">
               <button
+                type="button"
                 onClick={() => onSelectTab('receipts')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-emerald-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100/80 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <TrendingUp className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-emerald-50 text-emerald-500 border border-emerald-100/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <TrendingUp className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug">
                   આવક પાવતીઓ
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('vouchers')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-rose-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-rose-100/80 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <TrendingDown className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-rose-50 text-rose-500 border border-rose-100/80 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <TrendingDown className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-rose-600 dark:group-hover:text-rose-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors leading-snug">
                   ખર્ચ વાઉચર્સ
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('banks')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-blue-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-blue-100/80 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <Landmark className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-sky-50 text-sky-500 border border-sky-100/80 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <Landmark className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors leading-snug">
                   બેંક ખાતાઓ
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('accounting')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-purple-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-purple-100/80 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <BookOpen className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-purple-50 text-purple-500 border border-purple-100/80 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <BookOpen className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors leading-snug">
                   દ્વિ-નોંધી નામું
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('assets')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-amber-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-amber-100/80 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <Database className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-amber-50 text-amber-500 border border-amber-100/80 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <Database className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-snug">
                   સ્થાયી મિલકતો
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('purchase_sales')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-pink-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-pink-100/80 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <ShoppingBag className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-fuchsia-50 text-fuchsia-500 border border-fuchsia-100/80 dark:bg-fuchsia-950/40 dark:text-fuchsia-400 dark:border-fuchsia-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <ShoppingBag className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-pink-600 dark:group-hover:text-pink-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-fuchsia-600 dark:group-hover:text-fuchsia-400 transition-colors leading-snug">
                   ખરીદી અને વેચાણ
                 </span>
               </button>
@@ -296,68 +303,73 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                   દાતાઓ, સભાસદો, ટ્રસ્ટ બોર્ડ હોદ્દેદારો, ઠરાવ પુસ્તિકા અને દસ્તાવેજો
                 </p>
               </div>
-              <span className="text-[10px] font-extrabold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
-                ૫ મોડ્યુલ્સ
+              <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
+                કુલ ૫ મોડ્યુલ્સ
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-6 py-2">
               <button
+                type="button"
                 onClick={() => onSelectTab('donors')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-indigo-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100/80 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <Users className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-indigo-50 text-indigo-500 border border-indigo-100/80 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <Users className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
                   દાતાઓ
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('members')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-emerald-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100/80 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <UserCheck className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-teal-50 text-teal-500 border border-teal-100/80 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <UserCheck className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors leading-snug">
                   સભાસદો
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('trust_members')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-teal-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-teal-100/80 dark:bg-teal-950/80 text-teal-600 dark:text-teal-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <ShieldCheck className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-cyan-50 text-cyan-500 border border-cyan-100/80 dark:bg-cyan-950/40 dark:text-cyan-400 dark:border-cyan-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <ShieldCheck className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-teal-600 dark:group-hover:text-teal-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors leading-snug">
                   ટ્રસ્ટ હોદ્દેદારો
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('documents')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-sky-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-sky-100/80 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <FileText className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-sky-50 text-sky-500 border border-sky-100/80 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <FileText className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors leading-snug">
                   દસ્તાવેજો
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('tharav')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-orange-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-orange-100/80 dark:bg-orange-950/80 text-orange-600 dark:text-orange-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <FileSpreadsheet className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-orange-50 text-orange-500 border border-orange-100/80 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <BookOpen className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors leading-snug">
                   એજન્ડા & ઠરાવ
                 </span>
               </button>
@@ -373,59 +385,63 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                   <h3 className="text-base font-black">સિસ્ટમ સેટઅપ અને વિશ્લેષણ (System Configuration & Analytics)</h3>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  ટ્રસ્ટ ડેશબોર્ડ, ઓટો ડેટા બેકઅપ, વપરાશકર્તા પરવાનગીઓ અને સેટિંગ્સ
+                  ગ્રાફિકલ ડેશબોર્ડ, ઓટો ડેટા બેકઅપ, સેટિંગ્સ અને એડમિન પરવાનગીઓ
                 </p>
               </div>
-              <span className="text-[10px] font-extrabold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
-                ૪ મોડ્યુલ્સ
+              <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
+                કુલ ૪ મોડ્યુલ્સ
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-6 py-2">
               <button
+                type="button"
                 onClick={() => onSelectTab('dashboard')}
-                className="h-32 p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-emerald-500 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center transition-transform group-hover:scale-110 shadow-md shrink-0">
-                  <BarChart3 className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-emerald-50 text-emerald-500 border border-emerald-100/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <LayoutGrid className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-emerald-800 dark:text-emerald-300 group-hover:text-emerald-600 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug">
                   ડેશબોર્ડ & એનાલિટિક્સ
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('users')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-blue-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-blue-100/80 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <UserCog className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-indigo-50 text-indigo-500 border border-indigo-100/80 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <ShieldCheck className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
                   વપરાશકર્તાઓ
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('backup')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-lime-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-lime-100/80 dark:bg-lime-950/80 text-lime-600 dark:text-lime-400 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <HardDrive className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-lime-50 text-lime-600 border border-lime-100/80 dark:bg-lime-950/40 dark:text-lime-400 dark:border-lime-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <HardDrive className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-lime-600 dark:group-hover:text-lime-400 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-lime-600 dark:group-hover:text-lime-400 transition-colors leading-snug">
                   ઓટો બેકઅપ
                 </span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onSelectTab('settings')}
-                className="h-32 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:border-slate-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 text-center group"
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm shrink-0">
-                  <Settings className="w-6 h-6" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-slate-100 text-slate-600 border border-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <Settings className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
                 </div>
-                <span className="text-xs md:text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-slate-600 dark:group-hover:text-slate-300 leading-snug">
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors leading-snug">
                   ટ્રસ્ટ સેટિંગ્સ
                 </span>
               </button>

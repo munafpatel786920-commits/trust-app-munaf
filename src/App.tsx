@@ -2623,10 +2623,13 @@ export default function App() {
     const padSeq = String(seq).padStart(4, '0');
     const billNumber = `PR-2026-${padSeq}`;
 
+    const isCredit = newP.paymentMode === 'ઉધાર (Credit)';
     const bill: PurchaseBill = {
       ...newP,
       id: 'pur-' + Date.now(),
-      billNumber
+      billNumber,
+      paymentStatus: newP.paymentStatus || (isCredit ? 'ઉધાર / બાકી (Unpaid / Credit)' : 'ચૂકવેલ (Paid)'),
+      paidAmount: newP.paidAmount !== undefined ? newP.paidAmount : (isCredit ? 0 : newP.totalAmount)
     };
 
     const updatedBills = [bill, ...purchaseBills];
@@ -2652,23 +2655,52 @@ export default function App() {
       syncStorage('trust_inventory_items', parsedInv);
     }
 
-    // Automatically register as an Expense Voucher
-    handleAddVoucher({
-      date: newP.date,
-      category: 'ખરીદી (Purchase)',
-      amount: newP.totalAmount,
-      paidToGuj: newP.supplierNameGuj,
-      paymentMode: newP.paymentMode,
-      bankId: newP.bankId,
-      remarksGuj: `પ્રોડક્ટ ખરીદી બિલ નં: ${billNumber}. વસ્તુ: ${newP.itemNameGuj} (જથ્થો: ${newP.quantity})`,
-      approvedByGuj: currentSessionUser?.nameGuj || 'ટ્રસ્ટી શ્રી',
-      operatorGuj: currentSessionUser?.nameGuj || 'ડેટા ઓપરેટર'
-    });
+    // Automatically register as an Expense Voucher if paid amount > 0
+    const voucherAmount = isCredit ? (newP.paidAmount || 0) : newP.totalAmount;
+    if (voucherAmount > 0) {
+      handleAddVoucher({
+        date: newP.date,
+        category: 'ખરીદી (Purchase)',
+        amount: voucherAmount,
+        paidToGuj: newP.supplierNameGuj,
+        paymentMode: (isCredit || newP.paymentMode === 'ઉધાર (Credit)') ? 'રોકડ (Cash)' : newP.paymentMode,
+        bankId: newP.bankId,
+        remarksGuj: `પ્રોડક્ટ ખરીદી બિલ નં: ${billNumber}. વસ્તુ: ${newP.itemNameGuj} (જથ્થો: ${newP.quantity}) ${isCredit ? '[અંશત: ચૂકવણી]' : ''}`,
+        approvedByGuj: currentSessionUser?.nameGuj || 'ટ્રસ્ટી શ્રી',
+        operatorGuj: currentSessionUser?.nameGuj || 'ડેટા ઓપરેટર'
+      });
+    }
 
     addAuditLog(
       'નવું ખરીદી બિલ નોંધાયું',
       'ખરીદી વ્યવસ્થાપન',
-      `બિલ નં: ${billNumber}, વિક્રેતા: ${newP.supplierNameGuj}, રકમ: ₹ ${newP.totalAmount}`
+      `બિલ નં: ${billNumber}, વિક્રેતા: ${newP.supplierNameGuj}, રકમ: ₹ ${newP.totalAmount} (${bill.paymentStatus})`
+    );
+  };
+
+  const handleUpdatePurchaseBill = (updatedBill: PurchaseBill, settlementDetails?: { amount: number; mode: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)'; bankId?: string; date: string; remarksGuj?: string }) => {
+    const updatedBills = purchaseBills.map(p => p.id === updatedBill.id ? updatedBill : p);
+    setPurchaseBills(updatedBills);
+    syncStorage('trust_purchase_bills', updatedBills);
+
+    if (settlementDetails && settlementDetails.amount > 0) {
+      handleAddVoucher({
+        date: settlementDetails.date || new Date().toISOString().split('T')[0],
+        category: 'ઉધાર ખરીદી ચુકવણી (Udhar Settlement)',
+        amount: settlementDetails.amount,
+        paidToGuj: updatedBill.supplierNameGuj,
+        paymentMode: settlementDetails.mode,
+        bankId: settlementDetails.bankId,
+        remarksGuj: `ઉધાર ખરીદી બિલ નં: ${updatedBill.billNumber} ચુકવણી. વસ્તુ: ${updatedBill.itemNameGuj}. ${settlementDetails.remarksGuj || ''}`,
+        approvedByGuj: currentSessionUser?.nameGuj || 'ટ્રસ્ટી શ્રી',
+        operatorGuj: currentSessionUser?.nameGuj || 'ડેટા ઓપરેટર'
+      });
+    }
+
+    addAuditLog(
+      'ખરીદી બિલ અપડેટ / ઉધાર ચુકવણી',
+      'ખરીદી વ્યવસ્થાપન',
+      `બિલ નં: ${updatedBill.billNumber}, સ્ટેટસ: ${updatedBill.paymentStatus}`
     );
   };
 
@@ -2711,10 +2743,13 @@ export default function App() {
     const padSeq = String(seq).padStart(4, '0');
     const billNumber = `SL-2026-${padSeq}`;
 
+    const isCredit = newS.paymentMode === 'ઉધાર (Credit)';
     const bill: SalesBill = {
       ...newS,
       id: 'sal-' + Date.now(),
-      billNumber
+      billNumber,
+      paymentStatus: newS.paymentStatus || (isCredit ? 'ઉધાર / બાકી (Unpaid / Credit)' : 'ચૂકવેલ (Paid)'),
+      paidAmount: newS.paidAmount !== undefined ? newS.paidAmount : (isCredit ? 0 : newS.totalAmount)
     };
 
     const updatedBills = [bill, ...salesBills];
@@ -2740,23 +2775,52 @@ export default function App() {
       syncStorage('trust_inventory_items', parsedInv);
     }
 
-    // Automatically register as an Income Receipt
-    handleAddReceipt({
-      date: newS.date,
-      donorId: 'dnr-sales', // Special virtual donor ID for product sales
-      donorNameGuj: newS.customerNameGuj,
-      category: 'વેચાણ (Sales)',
-      amount: newS.totalAmount,
-      paymentMode: newS.paymentMode,
-      bankId: newS.bankId,
-      remarksGuj: `પ્રોડક્ટ વેચાણ બિલ નં: ${billNumber}. વસ્તુ: ${newS.itemNameGuj} (જથ્થો: ${newS.quantity})`,
-      operatorGuj: currentSessionUser?.nameGuj || 'ડેટા ઓપરેટર'
-    });
+    // Automatically register as an Income Receipt if paid amount > 0
+    const receiptAmount = isCredit ? (newS.paidAmount || 0) : newS.totalAmount;
+    if (receiptAmount > 0) {
+      handleAddReceipt({
+        date: newS.date,
+        donorId: 'dnr-sales', // Special virtual donor ID for product sales
+        donorNameGuj: newS.customerNameGuj,
+        category: 'વેચાણ (Sales)',
+        amount: receiptAmount,
+        paymentMode: (isCredit || newS.paymentMode === 'ઉધાર (Credit)') ? 'રોકડ (Cash)' : newS.paymentMode,
+        bankId: newS.bankId,
+        remarksGuj: `પ્રોડક્ટ વેચાણ બિલ નં: ${billNumber}. વસ્તુ: ${newS.itemNameGuj} (જથ્થો: ${newS.quantity}) ${isCredit ? '[અંશત: ચુકવણી]' : ''}`,
+        operatorGuj: currentSessionUser?.nameGuj || 'ડેટા ઓપરેટર'
+      });
+    }
 
     addAuditLog(
       'નવું વેચાણ બિલ બનાવવામાં આવ્યું',
       'વેચાણ વ્યવસ્થાપન',
-      `બિલ નં: ${billNumber}, ગ્રાહક: ${newS.customerNameGuj}, રકમ: ₹ ${newS.totalAmount}`
+      `બિલ નં: ${billNumber}, ગ્રાહક: ${newS.customerNameGuj}, રકમ: ₹ ${newS.totalAmount} (${bill.paymentStatus})`
+    );
+  };
+
+  const handleUpdateSalesBill = (updatedBill: SalesBill, settlementDetails?: { amount: number; mode: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)'; bankId?: string; date: string; remarksGuj?: string }) => {
+    const updatedBills = salesBills.map(s => s.id === updatedBill.id ? updatedBill : s);
+    setSalesBills(updatedBills);
+    syncStorage('trust_sales_bills', updatedBills);
+
+    if (settlementDetails && settlementDetails.amount > 0) {
+      handleAddReceipt({
+        date: settlementDetails.date || new Date().toISOString().split('T')[0],
+        donorId: 'dnr-sales',
+        donorNameGuj: updatedBill.customerNameGuj,
+        category: 'ઉધાર વેચાણ વસૂલાત (Udhar Collection)',
+        amount: settlementDetails.amount,
+        paymentMode: settlementDetails.mode,
+        bankId: settlementDetails.bankId,
+        remarksGuj: `ઉધાર વેચાણ બિલ નં: ${updatedBill.billNumber} વસૂલાત. વસ્તુ: ${updatedBill.itemNameGuj}. ${settlementDetails.remarksGuj || ''}`,
+        operatorGuj: currentSessionUser?.nameGuj || 'ડેટા ઓપરેટર'
+      });
+    }
+
+    addAuditLog(
+      'વેચાણ બિલ અપડેટ / ઉધાર વસૂલાત',
+      'વેચાણ વ્યવસ્થાપન',
+      `બિલ નં: ${updatedBill.billNumber}, સ્ટેટસ: ${updatedBill.paymentStatus}`
     );
   };
 
@@ -4912,7 +4976,9 @@ export default function App() {
                   onEditInventoryItem={handleEditInventoryItem}
                   onDeleteInventoryItem={handleDeleteInventoryItem}
                   onAddPurchase={handleAddPurchaseBill}
+                  onUpdatePurchase={handleUpdatePurchaseBill}
                   onAddSales={handleAddSalesBill}
+                  onUpdateSales={handleUpdateSalesBill}
                   onDeletePurchase={handleDeletePurchaseBill}
                   onDeleteSales={handleDeleteSalesBill}
                   currentUser={{ role: currentSessionUser?.role || '' }}
