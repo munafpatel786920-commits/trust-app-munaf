@@ -48,32 +48,24 @@ export const isOnlineCloudMode = (): boolean => {
 };
 
 // Helper to wrap promises with a timeout to prevent hanging when offline or network stalls
-const withTimeout = <T>(promise: Promise<T>, ms = 4000): Promise<T> => {
+const withTimeout = <T>(promise: Promise<T>, ms = 10000): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Firestore operation timeout')), ms))
   ]);
 };
 
-// Initialize Firebase with long polling and suppressed connection warnings for sandboxed iframe environments
+// Initialize Firebase with provisioned Firestore database
 try {
   if (!isElectronOfflineApp()) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     try {
-      db = initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true,
-      }, firebaseConfig.firestoreDatabaseId);
-    } catch (initErr) {
+      db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    } catch (e1) {
       try {
-        db = initializeFirestore(app, {
-          experimentalForceLongPolling: true,
-        }, firebaseConfig.firestoreDatabaseId);
+        db = getFirestore(app);
       } catch (e2) {
-        try {
-          db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-        } catch (dbErr) {
-          db = getFirestore(app);
-        }
+        console.warn("Firestore initialization error:", e2);
       }
     }
   } else {
