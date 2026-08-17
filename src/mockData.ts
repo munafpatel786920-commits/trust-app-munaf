@@ -14,7 +14,27 @@ export const DEFAULT_USERS: User[] = [
     roleGuj: 'પ્રશાસક (Administrator)',
     passwordHash: 'admin123',
     isActive: true,
-    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલ્ફેર ટ્રસ્ટ , ઇખર'
+  },
+  {
+    id: 'usr-demo',
+    username: 'demo',
+    nameGuj: 'દેમો યુઝર (ડેમો એડમિન)',
+    role: 'Admin',
+    roleGuj: 'પ્રશાસક (Administrator)',
+    passwordHash: 'demo123',
+    isActive: true,
+    trustNameGuj: 'દેમો ટ્રસ્ટ'
+  },
+  {
+    id: 'usr-ikhar-admin',
+    username: 'admin',
+    nameGuj: 'ઇખર મસ્જિદ ટ્રસ્ટી (પ્રશાસક)',
+    role: 'Admin',
+    roleGuj: 'પ્રશાસક (Administrator)',
+    passwordHash: 'admin123',
+    isActive: true,
+    trustNameGuj: 'ઇખર મસ્જિદ ટ્રસ્ટ'
   },
   {
     id: 'usr2',
@@ -24,7 +44,7 @@ export const DEFAULT_USERS: User[] = [
     roleGuj: 'નામું રાખનાર (Accountant)',
     passwordHash: 'acc123',
     isActive: true,
-    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલ્ફેર ટ્રસ્ટ , ઇખર'
   },
   {
     id: 'usr3',
@@ -34,7 +54,7 @@ export const DEFAULT_USERS: User[] = [
     roleGuj: 'ડેટા એન્ટ્રી ઓપરેટર (Data Entry)',
     passwordHash: 'op123',
     isActive: true,
-    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલ્ફેર ટ્રસ્ટ , ઇખર'
   },
   {
     id: 'usr4',
@@ -44,7 +64,7 @@ export const DEFAULT_USERS: User[] = [
     roleGuj: 'માત્ર વાંચવા માટે (Read Only)',
     passwordHash: 'read123',
     isActive: true,
-    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ'
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલ્ફેર ટ્રસ્ટ , ઇખર'
   }
 ];
 
@@ -81,13 +101,35 @@ export const DEFAULT_AUDIT_LOGS: AuditLog[] = [];
 
 export const DEFAULT_LICENSES: TrustLicense[] = [
   {
-    id: 'lic_progressive',
-    trustNameGuj: 'પ્રોગ્રેસિવ વેલફેર ટ્રસ્ટ',
-    licenseKey: 'PROG-WELL-9823-ACTV-8822',
-    registeredEmail: 'info@progressivewelfare.org',
+    id: 'lic-demo',
+    trustNameGuj: 'દેમો ટ્રસ્ટ',
+    licenseKey: 'DEMO-TRST-2026-ACTV-9999',
+    registeredEmail: 'patelmunaf90@gmail.com',
+    registeredPhone: '9876543210',
+    activationDate: '2026-01-01',
+    expiryDate: '2099-12-31',
+    status: 'સક્રિય (Active)',
+    version: 'v4.2.0'
+  },
+  {
+    id: 'lic-prog-ikhar',
+    trustNameGuj: 'પ્રોગ્રેસિવ વેલ્ફેર ટ્રસ્ટ , ઇખર',
+    licenseKey: 'PROG-IKHR-9823-ACTV-8822',
+    registeredEmail: 'patelmunaf90@gmail.com',
     registeredPhone: '9825012345',
     activationDate: '2026-01-01',
-    expiryDate: '2030-01-01',
+    expiryDate: '2099-12-31',
+    status: 'સક્રિય (Active)',
+    version: 'v4.2.0'
+  },
+  {
+    id: 'lic-ikhar-masjid',
+    trustNameGuj: 'ઇખર મસ્જિદ ટ્રસ્ટ',
+    licenseKey: 'IKHR-MSJD-4729-ACTV-7711',
+    registeredEmail: 'patelmunaf90@gmail.com',
+    registeredPhone: '9825099887',
+    activationDate: '2026-01-01',
+    expiryDate: '2099-12-31',
     status: 'સક્રિય (Active)',
     version: 'v4.2.0'
   }

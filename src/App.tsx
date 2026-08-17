@@ -2231,19 +2231,14 @@ export default function App() {
 
       const normalizeStr = (s?: string) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
-      // Find user matching username & password (and selected trust if specified)
+      // Find user matching username & password across active users and defaults
       let matchedUser = currentUserList.find(u => {
         const uName = normalizeStr(u.username);
         const uPass = (u.passwordHash || '').trim();
-        const matchesCreds = uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
-        if (!matchesCreds) return false;
-        if (loginSelectedTrust && loginSelectedTrust !== 'all' && loginSelectedTrust.trim() !== '') {
-          return normalizeStr(u.trustNameGuj) === normalizeStr(loginSelectedTrust);
-        }
-        return true;
+        return uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase()) && u.isActive !== false;
       });
 
-      // If not found with trust filter, try without filter
+      // If still not found, check all currentUserList including inactive to give clear error
       if (!matchedUser) {
         matchedUser = currentUserList.find(u => {
           const uName = normalizeStr(u.username);
@@ -2254,19 +2249,11 @@ export default function App() {
 
       // If still not found, check default users
       if (!matchedUser) {
-        const defaultMatch = DEFAULT_USERS.find(u => {
+        matchedUser = DEFAULT_USERS.find(u => {
           const uName = normalizeStr(u.username);
           const uPass = (u.passwordHash || '').trim();
-          const matchesCreds = uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
-          if (!matchesCreds) return false;
-          if (loginSelectedTrust && loginSelectedTrust !== 'all' && loginSelectedTrust.trim() !== '') {
-            return normalizeStr(u.trustNameGuj) === normalizeStr(loginSelectedTrust);
-          }
-          return true;
+          return uName === cleanUser && (uPass === cleanPass || uPass.toLowerCase() === cleanPass.toLowerCase());
         });
-        if (defaultMatch) {
-          matchedUser = defaultMatch;
-        }
       }
 
       if (!matchedUser) {
@@ -4238,34 +4225,6 @@ export default function App() {
                       <p>{loginError}</p>
                     </div>
                   </motion.div>
-                )}
-
-                {/* Trust Selector Dropdown */}
-                {licenses.length > 0 && (
-                  <div>
-                    <label htmlFor="trust_login_select" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                      <span>સંસ્થા / ટ્રસ્ટ પસંદ કરો (Select Trust)</span>
-                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                        {licenses.length} ટ્રસ્ટ
-                      </span>
-                    </label>
-                    <select
-                      id="trust_login_select"
-                      value={loginSelectedTrust}
-                      onChange={(e) => {
-                        setLoginSelectedTrust(e.target.value);
-                        setLoginError(null);
-                      }}
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-white font-medium focus:outline-emerald-500"
-                    >
-                      <option value="all">🔍 તમામ ટ્રસ્ટ (ઓટો ડિટેક્ટ - Auto Detect)</option>
-                      {licenses.map(lic => (
-                        <option key={lic.id} value={lic.trustNameGuj}>
-                          🏛️ {lic.trustNameGuj} {lic.status?.startsWith('સક્રિય') ? '' : '(Deactivated)'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 )}
 
                 {/* Username */}
