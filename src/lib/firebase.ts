@@ -132,8 +132,11 @@ export const saveFullTrustToFirebase = async (
     const docId = sanitizeFirestoreDocId(trustId);
     const docRef = doc(db, 'trust_records', docId);
     
+    // Clean data of undefined values
+    const cleanPayload = JSON.parse(JSON.stringify(payload));
+
     await withTimeout(setDoc(docRef, {
-      ...payload,
+      ...cleanPayload,
       last_cloud_sync: new Date().toISOString(),
       trust_name: trustId
     }, { merge: true }), 5000);
@@ -145,6 +148,37 @@ export const saveFullTrustToFirebase = async (
     } else {
       console.warn(`Full Firebase Cloud Sync notice for [${trustId}]:`, err?.message || err);
     }
+    return false;
+  }
+};
+
+/**
+ * Completely wipe / reset a trust record from Firebase Firestore
+ */
+export const resetTrustInFirebase = async (
+  trustId: string,
+  emptyPayload: Record<string, any>
+): Promise<boolean> => {
+  if (!db || isElectronOfflineApp() || !navigator.onLine) {
+    return false;
+  }
+  try {
+    const docId = sanitizeFirestoreDocId(trustId);
+    const docRef = doc(db, 'trust_records', docId);
+    
+    const cleanPayload = JSON.parse(JSON.stringify(emptyPayload));
+    // Overwrite completely WITHOUT merge so all prior documents/receipts/vouchers are erased
+    await withTimeout(setDoc(docRef, {
+      ...cleanPayload,
+      last_cloud_sync: new Date().toISOString(),
+      last_updated: new Date().toISOString(),
+      trust_name: trustId,
+      is_reset: true
+    }), 5000);
+
+    return true;
+  } catch (err: any) {
+    console.warn(`Reset Firebase Cloud failed for [${trustId}]:`, err?.message || err);
     return false;
   }
 };

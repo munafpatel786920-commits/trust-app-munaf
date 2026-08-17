@@ -489,13 +489,17 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
         </div>
         
         <div className="flex items-center gap-3 flex-wrap md:justify-end z-10">
-          <button
-            onClick={() => onSelectTab('control_panel')}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>🎛️ કંટ્રોલ પેનલ પર જાઓ</span>
-          </button>
+          <div className={`px-4 py-2.5 rounded-2xl border ${
+            darkMode ? 'bg-slate-800/80 border-slate-700 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          } flex items-center gap-3 text-xs font-bold shadow-sm`}>
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] block text-slate-500 dark:text-slate-400 font-semibold leading-tight uppercase">નાણાકીય વર્ષ (Financial Year)</span>
+              <span className="text-xs md:text-sm font-black">{trustSettings?.financialYear || '૨૦૨૬-૨૭ (AY 2026-27)'}</span>
+            </div>
+          </div>
         </div>
       </div>
 

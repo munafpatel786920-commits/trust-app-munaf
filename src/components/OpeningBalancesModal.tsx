@@ -27,7 +27,7 @@ export default function OpeningBalancesModal({
   darkMode,
   currentUserRole = 'Admin'
 }: OpeningBalancesModalProps) {
-  const [cashOpening, setCashOpening] = useState<number>(trustSettings?.openingCashBalance ?? 150000);
+  const [cashOpening, setCashOpening] = useState<number>(trustSettings?.openingCashBalance ?? 0);
   
   // Initial state for bank openings
   const [bankOpenings, setBankOpenings] = useState<{ [bankId: string]: number }>(() => {

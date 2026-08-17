@@ -97,11 +97,26 @@ export default function AccountingModule({
   const openingStockValue = (inventoryItems || []).reduce((sum, item) => sum + (item.openingStock * (item.purchasePrice || 0)), 0);
   const closingStockValue = (inventoryItems || []).reduce((sum, item) => sum + (item.currentStock * (item.purchasePrice || 0)), 0);
 
-  // Calculations
+  // General Incomes & General Expenses (distinguishing product trading)
+  const isSalesReceipt = (r: IncomeReceipt) =>
+    r.category?.includes('વેચાણ') || r.category?.includes('Sales') || r.category?.includes('વસૂલાત') || r.category?.includes('Udhar Collection') || r.donorId === 'dnr-sales';
+
+  const isPurchaseVoucher = (v: ExpenseVoucher) =>
+    v.category?.includes('ખરીદી') || v.category?.includes('Purchase') || v.category?.includes('Udhar Settlement');
+
+  const totalGeneralIncome = activeReceipts.filter(r => !isSalesReceipt(r)).reduce((sum, r) => sum + r.amount, 0);
+  const totalGeneralExpense = activeVouchers.filter(v => !isPurchaseVoucher(v)).reduce((sum, v) => sum + v.amount, 0);
+
+  // Calculations for Trading & General Activities Surplus
+  const tradingSurplus = totalSalesAmount + closingStockValue - openingStockValue - totalPurchasesAmount;
+  const generalSurplus = totalGeneralIncome - totalGeneralExpense;
+  const currentYearNetSurplus = generalSurplus + tradingSurplus;
+
+  // Receipts / Payments Totals (Cashbook / Passbook basis)
   const totalIncome = activeReceipts.reduce((sum, r) => sum + r.amount, 0);
   const totalExpense = activeVouchers.reduce((sum, v) => sum + v.amount, 0);
 
-  const initialCash = trustSettings?.openingCashBalance ?? 150000;
+  const initialCash = trustSettings?.openingCashBalance !== undefined ? trustSettings.openingCashBalance : 0;
   const cashIn = activeReceipts.filter(r => r.paymentMode.includes('રોકડ')).reduce((sum, r) => sum + r.amount, 0);
   const cashOut = activeVouchers.filter(v => v.paymentMode.includes('રોકડ')).reduce((sum, v) => sum + v.amount, 0);
 
@@ -118,7 +133,35 @@ export default function AccountingModule({
 
   const finalCash = initialCash + cashIn + bankCashWithdrawal - cashOut - bankCashDeposit;
 
-  const totalBankBalance = banks.reduce((sum, b) => sum + b.balance, 0);
+  // Accurate dynamic bank account ledger and balance calculation
+  const bankDetailedOpenings = banks.map(b => {
+    const bReceipts = activeReceipts.filter(r => !r.paymentMode.includes('રોકડ') && (r.bankId === b.id || (!r.bankId && (banks.length === 1 || banks[0]?.id === b.id)))).reduce((sum, r) => sum + r.amount, 0);
+    const bVouchers = activeVouchers.filter(v => !v.paymentMode.includes('રોકડ') && (v.bankId === b.id || (!v.bankId && (banks.length === 1 || banks[0]?.id === b.id)))).reduce((sum, v) => sum + v.amount, 0);
+    const bName = b.bankNameGuj ? b.bankNameGuj.split(' ')[0] : '';
+    const bDeposits = activeRecon
+      .filter(tx => (tx.type?.includes('જમા') || tx.docType === 'ડિપોઝીટ' || tx.docType === 'રોકડ ડિપોઝીટ') && (tx.bankId === b.id || (!tx.bankId && (bName && tx.bank?.includes(bName)))))
+      .reduce((sum, tx) => sum + tx.amount, 0);
+    const bWithdrawals = activeRecon
+      .filter(tx => (tx.type?.includes('ઉપાડ') || tx.docType === 'વિથડ્રોઅલ' || tx.docType === 'રોકડ ઉપાડ') && (tx.bankId === b.id || (!tx.bankId && (bName && tx.bank?.includes(bName)))))
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const calculatedOpening = (b.balance || 0) - bReceipts - bDeposits + bVouchers + bWithdrawals;
+    const finalOpening = b.openingBalance !== undefined ? b.openingBalance : calculatedOpening;
+    const finalBalance = b.openingBalance !== undefined ? (b.openingBalance + bReceipts + bDeposits - bVouchers - bWithdrawals) : (b.balance || 0);
+
+    return {
+      bank: b,
+      opening: finalOpening,
+      balance: finalBalance,
+      receipts: bReceipts,
+      vouchers: bVouchers,
+      deposits: bDeposits,
+      withdrawals: bWithdrawals
+    };
+  });
+
+  const openingBankBalances = bankDetailedOpenings.reduce((sum, item) => sum + item.opening, 0);
+  const totalBankBalance = bankDetailedOpenings.reduce((sum, item) => sum + item.balance, 0);
   const totalAssetVal = assets.reduce((sum, a) => sum + a.currentValue, 0);
 
   // Existing receipt numbers set to prevent duplication if a loan repayment already generated an IncomeReceipt
@@ -305,12 +348,19 @@ export default function AccountingModule({
   });
 
   // Calculate dynamic, mathematically precise Initial Trust Fund (Opening Capital Fund)
-  const openingBankBalances = banks.reduce((sum, b) => sum + (b.openingBalance !== undefined ? b.openingBalance : b.balance), 0);
   const initialTrustFund = initialCash + openingBankBalances + totalAssetVal + openingStockValue;
 
-  const totalLiabilities = initialTrustFund + totalIncome - totalExpense + closingStockValue - openingStockValue + totalUdharPurchasePayables;
-  const totalAssets = finalCash + totalBankBalance + totalAssetVal + closingStockValue + totalUdharSalesReceivables;
-  const isBalanceMatched = Math.abs(totalLiabilities - totalAssets) < 1;
+  // Total Capital Fund at Year End = Initial Capital Fund + Current Year Net Surplus
+  const totalCapitalFund = initialTrustFund + currentYearNetSurplus;
+
+  // Total Liabilities = Total Capital Fund + Sundry Creditors (Udhar Purchases)
+  const totalLiabilities = totalCapitalFund + totalUdharPurchasePayables;
+
+  // Total Assets = Fixed Assets + Bank Balances + Cash in Hand + Closing Stock + Sundry Debtors (Udhar Sales)
+  const totalAssets = totalAssetVal + totalBankBalance + finalCash + closingStockValue + totalUdharSalesReceivables;
+  
+  const discrepancy = Math.abs(totalLiabilities - totalAssets);
+  const isBalanceMatched = discrepancy < 1;
 
   // Custom categories state synced with localStorage
   const [customIncomeCats, setCustomIncomeCats] = useState<string[]>(() => {
@@ -931,30 +981,12 @@ export default function AccountingModule({
   // Trial Balance Accounts Mappings
   const trialBalanceAccounts = [
     { name: 'પ્રારંભિક રોકડ ખાતું (Cash Ledger)', debit: initialCash + cashIn + bankCashWithdrawal, credit: cashOut + bankCashDeposit },
-    ...banks.map(b => {
-      const bReceipts = activeReceipts.filter(r => r.paymentMode !== 'રોકડ (Cash)' && r.bankId === b.id).reduce((sum, r) => sum + r.amount, 0);
-      const bVouchers = activeVouchers.filter(v => v.paymentMode !== 'રોકડ (Cash)' && v.bankId === b.id).reduce((sum, v) => sum + v.amount, 0);
-      const bName = b.bankNameGuj ? b.bankNameGuj.split(' ')[0] : '';
-      const bDeposits = activeRecon
-        .filter(tx => {
-          const isDep = tx.type?.includes('જમા') || tx.docType === 'ડિપોઝીટ';
-          return isDep && (tx.bankId === b.id || (bName && tx.bank?.includes(bName)));
-        })
-        .reduce((sum, tx) => sum + tx.amount, 0);
-
-      const bWithdrawals = activeRecon
-        .filter(tx => {
-          const isWith = tx.type?.includes('ઉપાડ') || tx.docType === 'વિથડ્રોઅલ';
-          return isWith && (tx.bankId === b.id || (bName && tx.bank?.includes(bName)));
-        })
-        .reduce((sum, tx) => sum + tx.amount, 0);
-
-      const initialBankBalance = b.balance - bReceipts - bDeposits + bVouchers + bWithdrawals;
-
+    ...bankDetailedOpenings.map(item => {
+      const b = item.bank;
       return {
         name: `બેંક ખાતું - ${b.bankNameGuj} (${b.accountNumber})`,
-        debit: initialBankBalance + bReceipts + bDeposits,
-        credit: bVouchers + bWithdrawals
+        debit: item.opening + item.receipts + item.deposits,
+        credit: item.vouchers + item.withdrawals
       };
     }),
     ...assets.map(a => ({
@@ -962,12 +994,14 @@ export default function AccountingModule({
       debit: a.currentValue,
       credit: 0
     })),
-    { name: 'ટ્રસ્ટ સામાન્ય ભંડોળ (Trust Fund)', debit: 0, credit: initialTrustFund }, // dynamically balances liability
+    { name: 'ટ્રસ્ટ સામાન્ય ભંડોળ (Trust Capital Fund)', debit: 0, credit: initialTrustFund },
     { name: 'પ્રોડક્ટ માલસામાન શરૂઆતનો સ્ટોક (Inventory Opening Stock)', debit: openingStockValue, credit: 0 },
     { name: 'પ્રોડક્ટ ખરીદી ખાતું (Product Purchases Account)', debit: totalPurchasesAmount, credit: 0 },
-    { name: 'સામાન્ય ખર્ચ અને પ્રાવધાન (General Expenses)', debit: Math.max(0, totalExpense - totalPurchasesAmount), credit: 0 },
+    { name: 'સામાન્ય ખર્ચ અને પ્રાવધાન (General Expenses)', debit: totalGeneralExpense, credit: 0 },
     { name: 'પ્રોડક્ટ વેચાણ ખાતું (Product Sales Account)', debit: 0, credit: totalSalesAmount },
-    { name: 'દાન અને સામાન્ય આવક (General Incomes)', debit: 0, credit: Math.max(0, totalIncome - totalSalesAmount) }
+    { name: 'દાન અને સામાન્ય આવક (General Incomes)', debit: 0, credit: totalGeneralIncome },
+    ...(totalUdharSalesReceivables > 0 ? [{ name: 'ઉધાર ગ્રાહકો બાકી લેણું (Sundry Debtors - Udhar Sales)', debit: totalUdharSalesReceivables, credit: 0 }] : []),
+    ...(totalUdharPurchasePayables > 0 ? [{ name: 'ઉધાર સપ્લાયરો બાકી દેવું (Sundry Creditors - Udhar Purchases)', debit: 0, credit: totalUdharPurchasePayables }] : [])
   ];
 
   const totalDebits = trialBalanceAccounts.reduce((sum, a) => sum + a.debit, 0);
@@ -2629,22 +2663,27 @@ export default function AccountingModule({
               : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
           }`}>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              {isBalanceMatched ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+              )}
               <div>
                 <span className="font-bold block text-sm">
                   {isBalanceMatched ? '✓ પાકું સરવૈયું સંપૂર્ણ મેળ ખાતું છે (Schedule VIII Balance Sheet Perfectly Balanced)' : '⚠️ હિસાબમાં તફાવત (Balance Discrepancy Detected)'}
                 </span>
                 <span className="text-[11px] opacity-90">
-                  કુલ ફંડો/જવાબદારીઓ: <strong className="font-mono">₹ {totalLiabilities.toLocaleString('en-IN')}</strong> | કુલ મિલકતો/અસ્કયામતો: <strong className="font-mono">₹ {totalAssets.toLocaleString('en-IN')}</strong> (તફાવત: ₹ {Math.abs(totalLiabilities - totalAssets).toLocaleString('en-IN')})
+                  કુલ ફંડો/જવાબદારીઓ: <strong className="font-mono">₹ {totalLiabilities.toLocaleString('en-IN')}</strong> | કુલ મિલકતો/અસ્કયામતો: <strong className="font-mono">₹ {totalAssets.toLocaleString('en-IN')}</strong> {discrepancy > 0 ? `(તફાવત: ₹ ${discrepancy.toLocaleString('en-IN')})` : ''}
                 </span>
               </div>
             </div>
-            <span className="px-3 py-1 bg-emerald-700 text-white font-mono font-bold text-xs rounded-xl shadow-sm whitespace-nowrap">
-              તફાવત: ₹ ૦.૦૦
+            <span className={`px-3 py-1 font-mono font-bold text-xs rounded-xl shadow-sm whitespace-nowrap ${
+              isBalanceMatched ? 'bg-emerald-700 text-white' : 'bg-rose-700 text-white'
+            }`}>
+              તફાવત: ₹ {discrepancy.toLocaleString('en-IN')}
             </span>
           </div>
 
-                    {/* Schedule VIII Balance Sheet T-Ledger Grid */}
           {/* Schedule VIII Balance Sheet T-Ledger Grid */}
           <div className={`border ${cardBg} rounded-2xl overflow-hidden shadow-sm`}>
             <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 text-xs">
@@ -2666,49 +2705,45 @@ export default function AccountingModule({
                     </span>
                     <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
                       <span>પ્રારંભિક સામાન્ય ભંડોળ (Opening Capital Fund):</span>
-                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {(initialTrustFund - openingStockValue).toLocaleString('en-IN')}</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {initialTrustFund.toLocaleString('en-IN')}</span>
                     </div>
-                    {openingStockValue > 0 && (
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
-                        <span>ઉમેરો: શરૂઆતનો પ્રોડક્ટ સ્ટોક (Add: Opening Inventory Stock):</span>
-                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹ {openingStockValue.toLocaleString('en-IN')}</span>
-                      </div>
-                    )}
                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400 text-[11px]">
-                      <span>ઉમેરો: ચાલુ વર્ષનો ચોખ્ખો સંચિત વધારો (Add: Current Year Surplus):</span>
-                      <span className="font-mono font-bold">₹ {(totalIncome - totalExpense).toLocaleString('en-IN')}</span>
+                      <span>ઉમેરો: ચાલુ વર્ષનો ચોખ્ખો સંચિત વધારો (Add: Current Year Net Surplus):</span>
+                      <span className="font-mono font-bold">₹ {currentYearNetSurplus.toLocaleString('en-IN')}</span>
                     </div>
-                    {closingStockValue - openingStockValue !== 0 && (
-                      <div className="flex justify-between text-teal-600 dark:text-teal-400 text-[11px]">
-                        <span>ઉમેરો/બાદ: સ્ટોક મૂલ્યાંકન સુધારો (Stock Valuation Adjustment):</span>
-                        <span className="font-mono font-bold">₹ {(closingStockValue - openingStockValue).toLocaleString('en-IN')}</span>
-                      </div>
-                    )}
 
-                    {/* Explicit Sales and Purchase Details inside Capital Block */}
-                    <div className="pt-2 border-t border-slate-200 dark:border-slate-750 space-y-1">
-                      <span className="font-bold text-[10px] text-indigo-700 dark:text-indigo-400 block uppercase tracking-wider">ચાલુ વર્ષના પ્રોડક્ટ વેપાર વ્યવહારો (Product Trading Details):</span>
-                      <div className="flex justify-between text-slate-500 text-[10px]">
+                    {/* Breakdown of General Activities & Product Trading inside Capital Block */}
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-750 space-y-1 bg-indigo-50/40 dark:bg-indigo-950/20 p-2 rounded-lg">
+                      <span className="font-bold text-[10px] text-indigo-700 dark:text-indigo-400 block uppercase tracking-wider">
+                        ચાલુ વર્ષના આવક-ખર્ચ અને વેપાર વ્યવહારો (Trading & Activities):
+                      </span>
+                      <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[10px]">
                         <span>દાન અને સામાન્ય ટ્રસ્ટ આવકો:</span>
-                        <span className="font-mono">₹ {(totalIncome - totalSalesAmount).toLocaleString('en-IN')}</span>
+                        <span className="font-mono font-bold text-emerald-600">₹ {totalGeneralIncome.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[10px]">
+                        <span>સામાન્ય વહીવટી ટ્રસ્ટ ખર્ચાઓ:</span>
+                        <span className="font-mono font-bold text-rose-600">(-) ₹ {totalGeneralExpense.toLocaleString('en-IN')}</span>
                       </div>
                       <div className="flex justify-between text-emerald-700 dark:text-emerald-400 text-[10px] font-medium">
                         <span>(+) પ્રોડક્ટ વેચાણ આવક (Product Sales Revenue):</span>
                         <span className="font-mono">₹ {totalSalesAmount.toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex justify-between text-slate-500 text-[10px]">
-                        <span>સામાન્ય વહીવટી ટ્રસ્ટ ખર્ચાઓ:</span>
-                        <span className="font-mono">₹ {(totalExpense - totalPurchasesAmount).toLocaleString('en-IN')}</span>
-                      </div>
                       <div className="flex justify-between text-rose-700 dark:text-rose-400 text-[10px] font-medium">
                         <span>(-) પ્રોડક્ટ ખરીદી ખર્ચ (Product Purchases Expense):</span>
                         <span className="font-mono">₹ {totalPurchasesAmount.toLocaleString('en-IN')}</span>
                       </div>
+                      {closingStockValue - openingStockValue !== 0 && (
+                        <div className="flex justify-between text-teal-700 dark:text-teal-400 text-[10px] font-medium">
+                          <span>(+/-) સ્ટોક મૂલ્યાંકન ફેરફાર (Stock Valuation Delta):</span>
+                          <span className="font-mono font-bold">₹ {(closingStockValue - openingStockValue).toLocaleString('en-IN')}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-between font-black text-slate-800 dark:text-slate-100 pt-1.5 border-t text-xs">
                       <span>કુલ મૂડી ભંડોળ (Total Capital Fund Balance):</span>
-                      <span className="font-mono text-indigo-600 dark:text-indigo-400">₹ {totalLiabilities.toLocaleString('en-IN')}</span>
+                      <span className="font-mono text-indigo-600 dark:text-indigo-400">₹ {totalCapitalFund.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
 

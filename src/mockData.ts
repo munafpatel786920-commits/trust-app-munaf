@@ -68,18 +68,7 @@ export const DEFAULT_USERS: User[] = [
   }
 ];
 
-export const DEFAULT_DONORS: Donor[] = [
-  {
-    id: 'dnr-1',
-    nameGuj: 'રમણભાઈ ડાહ્યાભાઈ પટેલ',
-    phone: '9825011111',
-    panNumber: 'ABCDE1234F',
-    aadharNumber: '123456789012',
-    email: 'ramanbhai@gmail.com',
-    addressGuj: 'સોલા ભાગવત રોડ, અમદાવાદ',
-    createdAt: '2026-04-01T10:00:00.000Z'
-  }
-];
+export const DEFAULT_DONORS: Donor[] = [];
 
 export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [];
 

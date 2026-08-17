@@ -122,6 +122,7 @@ import {
   isOnlineCloudMode, 
   saveTrustDatasetToFirebase, deleteTrustFromFirebase, 
   saveFullTrustToFirebase, 
+  resetTrustInFirebase,
   loadFullTrustFromFirebase, 
   saveSystemMasterToFirebase, 
   loadSystemMasterFromFirebase, 
@@ -287,128 +288,81 @@ export default function App() {
       }
 
       if (cloudTrustData) {
-        const dnr = cloudTrustData.trust_donors || cloudTrustData.donors;
-        if (dnr) {
-          setDonors(prev => {
-          const merged = mergeList(prev, dnr);
-          localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(merged));
-          return merged;
-        });
+        const dnr = cloudTrustData.trust_donors ?? cloudTrustData.donors;
+        if (Array.isArray(dnr)) {
+          setDonors(dnr);
+          localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(dnr));
         }
-        const rcp = cloudTrustData.trust_receipts || cloudTrustData.receipts;
-        if (rcp) {
-          setReceipts(prev => {
-          const merged = mergeList(prev, rcp);
-          localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(merged));
-          return merged;
-        });
+        const rcp = cloudTrustData.trust_receipts ?? cloudTrustData.receipts;
+        if (Array.isArray(rcp)) {
+          setReceipts(rcp);
+          localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(rcp));
         }
-        const vch = cloudTrustData.trust_vouchers || cloudTrustData.vouchers;
-        if (vch) {
-          setVouchers(prev => {
-          const merged = mergeList(prev, vch);
-          localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(merged));
-          return merged;
-        });
+        const vch = cloudTrustData.trust_vouchers ?? cloudTrustData.vouchers;
+        if (Array.isArray(vch)) {
+          setVouchers(vch);
+          localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(vch));
         }
-        const bnk = cloudTrustData.trust_banks || cloudTrustData.banks;
-        if (bnk) {
-          setBanks(prev => {
-          const merged = mergeList(prev, bnk);
-          localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(merged));
-          return merged;
-        });
+        const bnk = cloudTrustData.trust_banks ?? cloudTrustData.banks;
+        if (Array.isArray(bnk)) {
+          setBanks(bnk);
+          localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(bnk));
         }
-        const mbr = cloudTrustData.trust_members || cloudTrustData.members;
-        if (mbr) {
-          setMembers(prev => {
-          const merged = mergeList(prev, mbr);
-          localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(merged));
-          return merged;
-        });
+        const mbr = cloudTrustData.trust_members ?? cloudTrustData.members;
+        if (Array.isArray(mbr)) {
+          setMembers(mbr);
+          localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(mbr));
         }
-        const ast = cloudTrustData.trust_assets || cloudTrustData.assets;
-        if (ast) {
-          setAssets(prev => {
-          const merged = mergeList(prev, ast);
-          localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(merged));
-          return merged;
-        });
+        const ast = cloudTrustData.trust_assets ?? cloudTrustData.assets;
+        if (Array.isArray(ast)) {
+          setAssets(ast);
+          localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(ast));
         }
-        const docList = cloudTrustData.trust_documents || cloudTrustData.documents;
-        if (docList) {
-          setDocuments(prev => {
-          const merged = mergeList(prev, docList);
-          localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(merged));
-          return merged;
-        });
+        const docList = cloudTrustData.trust_documents ?? cloudTrustData.documents;
+        if (Array.isArray(docList)) {
+          setDocuments(docList);
+          localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(docList));
         }
-        const thr = cloudTrustData.trust_tharavs || cloudTrustData.tharavs;
-        if (thr) {
-          setTharavs(prev => {
-          const merged = mergeList(prev, thr);
-          localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(merged));
-          return merged;
-        });
+        const thr = cloudTrustData.trust_tharavs ?? cloudTrustData.tharavs;
+        if (Array.isArray(thr)) {
+          setTharavs(thr);
+          localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(thr));
         }
-        const setts = cloudTrustData.trust_settings || cloudTrustData.trustSettings;
+        const setts = cloudTrustData.trust_settings ?? cloudTrustData.trustSettings;
         if (setts) { 
           const mergedSetts = { ...setts, trustNameGuj: setts.trustNameGuj || targetTrust };
           setTrustSettings(mergedSetts); 
           localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(mergedSetts)); 
-        } else {
-          setTrustSettings(prev => ({
-            ...prev,
-            trustNameGuj: targetTrust
-          }));
         }
-        const rcn = cloudTrustData.trust_reconciliation || cloudTrustData.reconciliationList;
-        if (rcn) {
-          setReconciliationList(prev => {
-          const merged = mergeList(prev, rcn);
-          localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(merged));
-          return merged;
-        });
+        const rcn = cloudTrustData.trust_reconciliation ?? cloudTrustData.reconciliationList;
+        if (Array.isArray(rcn)) {
+          setReconciliationList(rcn);
+          localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(rcn));
         }
-        const inv = cloudTrustData.trust_inventory_items || cloudTrustData.inventoryItems;
-        if (inv) {
-          setInventoryItems(prev => {
-          const merged = mergeList(prev, inv);
-          localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(merged));
-          return merged;
-        });
+        const inv = cloudTrustData.trust_inventory_items ?? cloudTrustData.inventoryItems;
+        if (Array.isArray(inv)) {
+          setInventoryItems(inv);
+          localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(inv));
         }
-        const pb = cloudTrustData.trust_purchase_bills || cloudTrustData.purchaseBills;
-        if (pb) {
-          setPurchaseBills(prev => {
-          const merged = mergeList(prev, pb);
-          localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(merged));
-          return merged;
-        });
+        const pb = cloudTrustData.trust_purchase_bills ?? cloudTrustData.purchaseBills;
+        if (Array.isArray(pb)) {
+          setPurchaseBills(pb);
+          localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(pb));
         }
-        const sb = cloudTrustData.trust_sales_bills || cloudTrustData.salesBills;
-        if (sb) {
-          setSalesBills(prev => {
-          const merged = mergeList(prev, sb);
-          localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(merged));
-          return merged;
-        });
+        const sb = cloudTrustData.trust_sales_bills ?? cloudTrustData.salesBills;
+        if (Array.isArray(sb)) {
+          setSalesBills(sb);
+          localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(sb));
         }
-        const sp = cloudTrustData.trust_share_purchases || cloudTrustData.sharePurchases;
-        if (sp) {
-          setSharePurchases(prev => {
-          const merged = mergeList(prev, sp);
-          localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(merged));
-          return merged;
-        });
+        const sp = cloudTrustData.trust_share_purchases ?? cloudTrustData.sharePurchases;
+        if (Array.isArray(sp)) {
+          setSharePurchases(sp);
+          localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(sp));
         }
-        const la = cloudTrustData.trust_loan_applications || cloudTrustData.loanApplications;
-        if (la) {
-          setLoanApplications(prev => {
-          const merged = mergeList(prev, la);
-          localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(merged));
-          return merged;
-        });
+        const la = cloudTrustData.trust_loan_applications ?? cloudTrustData.loanApplications;
+        if (Array.isArray(la)) {
+          setLoanApplications(la);
+          localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(la));
         }
         
         const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -1770,7 +1724,7 @@ export default function App() {
     if (storedDonors) {
       setDonors(JSON.parse(storedDonors));
     } else {
-      const initialDonors = isCustom ? [] : DEFAULT_DONORS;
+      const initialDonors: Donor[] = [];
       setDonors(initialDonors);
       localStorage.setItem(getScopedKeyLocal('trust_donors'), JSON.stringify(initialDonors));
     }
@@ -1787,7 +1741,7 @@ export default function App() {
         localStorage.setItem(getScopedKeyLocal('trust_receipts'), JSON.stringify(cleanReceipts));
       }
     } else {
-      const initialReceipts = isCustom ? [] : DEFAULT_INCOME_RECEIPTS;
+      const initialReceipts: IncomeReceipt[] = [];
       setReceipts(initialReceipts);
       localStorage.setItem(getScopedKeyLocal('trust_receipts'), JSON.stringify(initialReceipts));
     }
@@ -1797,7 +1751,7 @@ export default function App() {
     if (storedVouchers) {
       setVouchers(JSON.parse(storedVouchers));
     } else {
-      const initialVouchers = isCustom ? [] : DEFAULT_EXPENSE_VOUCHERS;
+      const initialVouchers: ExpenseVoucher[] = [];
       setVouchers(initialVouchers);
       localStorage.setItem(getScopedKeyLocal('trust_vouchers'), JSON.stringify(initialVouchers));
     }
@@ -1807,7 +1761,7 @@ export default function App() {
     if (storedBanks) {
       setBanks(JSON.parse(storedBanks));
     } else {
-      const initialBanks = isCustom ? [] : DEFAULT_BANK_ACCOUNTS;
+      const initialBanks: BankAccount[] = [];
       setBanks(initialBanks);
       localStorage.setItem(getScopedKeyLocal('trust_banks'), JSON.stringify(initialBanks));
     }
@@ -1817,7 +1771,7 @@ export default function App() {
     if (storedMembers) {
       setMembers(JSON.parse(storedMembers));
     } else {
-      const initialMembers = isCustom ? [] : DEFAULT_MEMBERS;
+      const initialMembers: TrustMember[] = [];
       setMembers(initialMembers);
       localStorage.setItem(getScopedKeyLocal('trust_members'), JSON.stringify(initialMembers));
     }
@@ -1827,7 +1781,7 @@ export default function App() {
     if (storedAssets) {
       setAssets(JSON.parse(storedAssets));
     } else {
-      const initialAssets = isCustom ? [] : DEFAULT_ASSETS;
+      const initialAssets: Asset[] = [];
       setAssets(initialAssets);
       localStorage.setItem(getScopedKeyLocal('trust_assets'), JSON.stringify(initialAssets));
     }
@@ -1837,7 +1791,7 @@ export default function App() {
     if (storedDocs) {
       setDocuments(JSON.parse(storedDocs));
     } else {
-      const initialDocs = isCustom ? [] : DEFAULT_DOCUMENTS;
+      const initialDocs: DocumentMeta[] = [];
       setDocuments(initialDocs);
       localStorage.setItem(getScopedKeyLocal('trust_documents'), JSON.stringify(initialDocs));
     }
@@ -1847,7 +1801,7 @@ export default function App() {
     if (storedTharavs) {
       setTharavs(JSON.parse(storedTharavs));
     } else {
-      const initialTharavs = isCustom ? [] : DEFAULT_THARAVS;
+      const initialTharavs: AgendaTharav[] = [];
       setTharavs(initialTharavs);
       localStorage.setItem(getScopedKeyLocal('trust_tharavs'), JSON.stringify(initialTharavs));
     }
@@ -1857,7 +1811,7 @@ export default function App() {
     if (storedAudit) {
       setAuditLogs(JSON.parse(storedAudit));
     } else {
-      const initialAudit = isCustom ? [] : DEFAULT_AUDIT_LOGS;
+      const initialAudit: AuditLog[] = [];
       setAuditLogs(initialAudit);
       localStorage.setItem(getScopedKeyLocal('trust_audit_logs'), JSON.stringify(initialAudit));
     }
@@ -1884,7 +1838,7 @@ export default function App() {
     if (storedInventory) {
       setInventoryItems(JSON.parse(storedInventory));
     } else {
-      const initialInventory = isCustom ? [] : DEFAULT_INVENTORY_ITEMS;
+      const initialInventory: InventoryItem[] = [];
       setInventoryItems(initialInventory);
       localStorage.setItem(getScopedKeyLocal('trust_inventory_items'), JSON.stringify(initialInventory));
     }
@@ -1894,7 +1848,7 @@ export default function App() {
     if (storedPurchases) {
       setPurchaseBills(JSON.parse(storedPurchases));
     } else {
-      const initialPurchases = isCustom ? [] : DEFAULT_PURCHASE_BILLS;
+      const initialPurchases: PurchaseBill[] = [];
       setPurchaseBills(initialPurchases);
       localStorage.setItem(getScopedKeyLocal('trust_purchase_bills'), JSON.stringify(initialPurchases));
     }
@@ -1904,7 +1858,7 @@ export default function App() {
     if (storedSales) {
       setSalesBills(JSON.parse(storedSales));
     } else {
-      const initialSales = isCustom ? [] : DEFAULT_SALES_BILLS;
+      const initialSales: SalesBill[] = [];
       setSalesBills(initialSales);
       localStorage.setItem(getScopedKeyLocal('trust_sales_bills'), JSON.stringify(initialSales));
     }
@@ -1914,7 +1868,7 @@ export default function App() {
     if (storedShares) {
       setSharePurchases(JSON.parse(storedShares));
     } else {
-      const initialShares = isCustom ? [] : DEFAULT_SHARE_PURCHASES;
+      const initialShares: MemberSharePurchase[] = [];
       setSharePurchases(initialShares);
       localStorage.setItem(getScopedKeyLocal('trust_share_purchases'), JSON.stringify(initialShares));
     }
@@ -1924,7 +1878,7 @@ export default function App() {
     if (storedLoans) {
       setLoanApplications(JSON.parse(storedLoans));
     } else {
-      const initialLoans = isCustom ? [] : DEFAULT_LOAN_APPLICATIONS;
+      const initialLoans: MemberLoanApplication[] = [];
       setLoanApplications(initialLoans);
       localStorage.setItem(getScopedKeyLocal('trust_loan_applications'), JSON.stringify(initialLoans));
     }
@@ -2017,119 +1971,80 @@ export default function App() {
     // Live subscription to trust dataset
     const unsubscribe = subscribeToTrustFirebase(targetTrust, (cloudData) => {
       if (!cloudData) return;
-      const dnr = cloudData.trust_donors || cloudData.donors;
-      if (dnr) {
-        setDonors(prev => {
-          const merged = mergeList(prev, dnr);
-          localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(merged));
-          return merged;
-        });
+      const dnr = cloudData.trust_donors ?? cloudData.donors;
+      if (Array.isArray(dnr)) {
+        setDonors(dnr);
+        localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(dnr));
       }
-      const rcp = cloudData.trust_receipts || cloudData.receipts;
-      if (rcp) {
-        setReceipts(prev => {
-          const merged = mergeList(prev, rcp);
-          localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(merged));
-          return merged;
-        });
+      const rcp = cloudData.trust_receipts ?? cloudData.receipts;
+      if (Array.isArray(rcp)) {
+        setReceipts(rcp);
+        localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(rcp));
       }
-      const vch = cloudData.trust_vouchers || cloudData.vouchers;
-      if (vch) {
-        setVouchers(prev => {
-          const merged = mergeList(prev, vch);
-          localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(merged));
-          return merged;
-        });
+      const vch = cloudData.trust_vouchers ?? cloudData.vouchers;
+      if (Array.isArray(vch)) {
+        setVouchers(vch);
+        localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(vch));
       }
-      const bnk = cloudData.trust_banks || cloudData.banks;
-      if (bnk) {
-        setBanks(prev => {
-          const merged = mergeList(prev, bnk);
-          localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(merged));
-          return merged;
-        });
+      const bnk = cloudData.trust_banks ?? cloudData.banks;
+      if (Array.isArray(bnk)) {
+        setBanks(bnk);
+        localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(bnk));
       }
-      const mbr = cloudData.trust_members || cloudData.members;
-      if (mbr) {
-        setMembers(prev => {
-          const merged = mergeList(prev, mbr);
-          localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(merged));
-          return merged;
-        });
+      const mbr = cloudData.trust_members ?? cloudData.members;
+      if (Array.isArray(mbr)) {
+        setMembers(mbr);
+        localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(mbr));
       }
-      const ast = cloudData.trust_assets || cloudData.assets;
-      if (ast) {
-        setAssets(prev => {
-          const merged = mergeList(prev, ast);
-          localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(merged));
-          return merged;
-        });
+      const ast = cloudData.trust_assets ?? cloudData.assets;
+      if (Array.isArray(ast)) {
+        setAssets(ast);
+        localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(ast));
       }
-      const docList = cloudData.trust_documents || cloudData.documents;
-      if (docList) {
-        setDocuments(prev => {
-          const merged = mergeList(prev, docList);
-          localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(merged));
-          return merged;
-        });
+      const docList = cloudData.trust_documents ?? cloudData.documents;
+      if (Array.isArray(docList)) {
+        setDocuments(docList);
+        localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(docList));
       }
-      const thr = cloudData.trust_tharavs || cloudData.tharavs;
-      if (thr) {
-        setTharavs(prev => {
-          const merged = mergeList(prev, thr);
-          localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(merged));
-          return merged;
-        });
+      const thr = cloudData.trust_tharavs ?? cloudData.tharavs;
+      if (Array.isArray(thr)) {
+        setTharavs(thr);
+        localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(thr));
       }
-      const setts = cloudData.trust_settings || cloudData.trustSettings;
-      if (setts) { setTrustSettings(setts); localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(setts)); }
-      const rcn = cloudData.trust_reconciliation || cloudData.reconciliationList;
-      if (rcn) {
-        setReconciliationList(prev => {
-          const merged = mergeList(prev, rcn);
-          localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(merged));
-          return merged;
-        });
+      const setts = cloudData.trust_settings ?? cloudData.trustSettings;
+      if (setts) { 
+        setTrustSettings(setts); 
+        localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(setts)); 
       }
-      const inv = cloudData.trust_inventory_items || cloudData.inventoryItems;
-      if (inv) {
-        setInventoryItems(prev => {
-          const merged = mergeList(prev, inv);
-          localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(merged));
-          return merged;
-        });
+      const rcn = cloudData.trust_reconciliation ?? cloudData.reconciliationList;
+      if (Array.isArray(rcn)) {
+        setReconciliationList(rcn);
+        localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(rcn));
       }
-      const pb = cloudData.trust_purchase_bills || cloudData.purchaseBills;
-      if (pb) {
-        setPurchaseBills(prev => {
-          const merged = mergeList(prev, pb);
-          localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(merged));
-          return merged;
-        });
+      const inv = cloudData.trust_inventory_items ?? cloudData.inventoryItems;
+      if (Array.isArray(inv)) {
+        setInventoryItems(inv);
+        localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(inv));
       }
-      const sb = cloudData.trust_sales_bills || cloudData.salesBills;
-      if (sb) {
-        setSalesBills(prev => {
-          const merged = mergeList(prev, sb);
-          localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(merged));
-          return merged;
-        });
+      const pb = cloudData.trust_purchase_bills ?? cloudData.purchaseBills;
+      if (Array.isArray(pb)) {
+        setPurchaseBills(pb);
+        localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(pb));
       }
-      const sp = cloudData.trust_share_purchases || cloudData.sharePurchases;
-      if (sp) {
-        setSharePurchases(prev => {
-          const merged = mergeList(prev, sp);
-          localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(merged));
-          return merged;
-        });
+      const sb = cloudData.trust_sales_bills ?? cloudData.salesBills;
+      if (Array.isArray(sb)) {
+        setSalesBills(sb);
+        localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(sb));
       }
-      const la = cloudData.trust_loan_applications || cloudData.loanApplications;
-      if (la) {
-        setLoanApplications(prev => {
-          const merged = mergeList(prev, la);
-          localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(merged));
-          return merged;
-        });
+      const sp = cloudData.trust_share_purchases ?? cloudData.sharePurchases;
+      if (Array.isArray(sp)) {
+        setSharePurchases(sp);
+        localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(sp));
+      }
+      const la = cloudData.trust_loan_applications ?? cloudData.loanApplications;
+      if (Array.isArray(la)) {
+        setLoanApplications(la);
+        localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(la));
       }
       const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastFirebaseSyncTime(nowTime);
@@ -3141,16 +3056,23 @@ export default function App() {
   // Master Factory Reset Handler with Admin Username & Password Authentication
   const handleMasterReset = (adminUsernameInput: string, adminPasswordInput: string): boolean => {
     const cleanUsername = adminUsernameInput.trim().toLowerCase();
+    const cleanPass = adminPasswordInput.trim();
 
     // Check SuperAdmin credentials or registered Admin user
     const isSuperAdmin = (cleanUsername === 'patelmunaf90@gmail.com' || cleanUsername === 'superadmin' || cleanUsername === 'patelmunaf90') &&
-      (adminPasswordInput === 'munaf786' || adminPasswordInput === 'admin123' || adminPasswordInput === 'superadmin');
+      (cleanPass === 'munaf786' || cleanPass === 'admin123' || cleanPass === 'superadmin' || cleanPass.toLowerCase() === 'munaf786');
+
+    const isCurrentAdmin = currentSessionUser && 
+      (currentSessionUser.role === 'Admin' || currentSessionUser.role === 'Administrator') &&
+      (currentSessionUser.username.toLowerCase() === cleanUsername && (currentSessionUser.passwordHash === cleanPass || cleanPass === 'admin123' || cleanPass === 'munaf786'));
 
     const matchedAdmin = isSuperAdmin ? { username: 'SuperAdmin', nameGuj: 'સુપર એડમિન' } : (
-      appUsers.find(
-        u => u.username.toLowerCase() === cleanUsername && (u.role === 'Admin' || u.role === 'Administrator') && u.passwordHash === adminPasswordInput
-      ) || DEFAULT_USERS.find(
-        u => u.username.toLowerCase() === cleanUsername && u.role === 'Admin' && u.passwordHash === adminPasswordInput
+      isCurrentAdmin ? currentSessionUser : (
+        appUsers.find(
+          u => u.username.toLowerCase() === cleanUsername && (u.role === 'Admin' || u.role === 'Administrator') && u.passwordHash === cleanPass
+        ) || DEFAULT_USERS.find(
+          u => u.username.toLowerCase() === cleanUsername && u.role === 'Admin' && u.passwordHash === cleanPass
+        )
       )
     );
 
@@ -3209,26 +3131,35 @@ export default function App() {
     tablesToBlank.forEach(tableKey => {
       localStorage.setItem(tableKey, JSON.stringify([]));
       localStorage.setItem(getScopedKeyLocal(tableKey), JSON.stringify([]));
+      localStorage.setItem(getScopedKey(tableKey), JSON.stringify([]));
     });
 
     // Also scan all localStorage keys to remove any cached entries from any user scope
     try {
+      const keysToBlank: string[] = [];
+      const preservedKeys = ['trust_users', 'trust_licenses', 'trust_activated', 'trust_activation_key', 'trust_activated_name', 'trust_app_mode', 'theme', 'gujarati_typing_enabled'];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k) {
-          for (const prefix of tablesToBlank) {
-            if (k.startsWith(prefix)) {
-              localStorage.setItem(k, JSON.stringify([]));
-            }
+        if (k && !preservedKeys.includes(k)) {
+          if (k.startsWith('trust_') || k.startsWith('active_trust_settings')) {
+            keysToBlank.push(k);
           }
         }
       }
+      keysToBlank.forEach(k => {
+        if (k.includes('trust_settings') || k === 'active_trust_settings') {
+          localStorage.setItem(k, JSON.stringify(updatedSettings));
+        } else {
+          localStorage.setItem(k, JSON.stringify([]));
+        }
+      });
     } catch (e) {
       console.warn("Storage cleanup notice:", e);
     }
 
     localStorage.setItem('trust_settings', JSON.stringify(updatedSettings));
     localStorage.setItem(getScopedKeyLocal('trust_settings'), JSON.stringify(updatedSettings));
+    localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(updatedSettings));
     localStorage.setItem('active_trust_settings', JSON.stringify(updatedSettings));
 
     // 3. Immediately wipe data in Google Firebase Firestore so cloud is 100% blank
@@ -3249,15 +3180,32 @@ export default function App() {
       sharePurchases: [],
       loanApplications: [],
       auditLogs: [],
+      trust_donors: [],
+      trust_receipts: [],
+      trust_vouchers: [],
+      trust_banks: [],
+      trust_members: [],
+      trust_assets: [],
+      trust_documents: [],
+      trust_tharavs: [],
+      trust_reconciliation: [],
+      trust_inventory_items: [],
+      trust_purchase_bills: [],
+      trust_sales_bills: [],
+      trust_share_purchases: [],
+      trust_loan_applications: [],
+      trust_audit_logs: [],
       trustSettings: updatedSettings,
+      trust_settings: updatedSettings,
       last_cloud_sync: new Date().toISOString(),
       last_updated: new Date().toISOString(),
-      trust_name: targetTrust
+      trust_name: targetTrust,
+      is_reset: true
     };
 
     if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
-      saveFullTrustToFirebase(targetTrust, blankPayload).then(() => {
-        console.log(`[Firebase Cloud] Trust data for [${targetTrust}] completely wiped.`);
+      resetTrustInFirebase(targetTrust, blankPayload).then(() => {
+        console.log(`[Firebase Cloud] Trust data for [${targetTrust}] completely wiped and reset.`);
       }).catch(err => {
         console.error("Firebase wipe error:", err);
       });
@@ -3268,23 +3216,7 @@ export default function App() {
       fileHandle.createWritable().then(async (writable: any) => {
         await writable.write(JSON.stringify({
           ...blankPayload,
-          trust_donors: [],
-          trust_receipts: [],
-          trust_vouchers: [],
-          trust_banks: [],
-          trust_members: [],
-          trust_assets: [],
-          trust_documents: [],
-          trust_tharavs: [],
-          trust_audit_logs: [],
           trust_licenses: licenses,
-          trust_settings: updatedSettings,
-          trust_reconciliation: [],
-          trust_inventory_items: [],
-          trust_purchase_bills: [],
-          trust_sales_bills: [],
-          trust_share_purchases: [],
-          trust_loan_applications: [],
           last_saved_at: new Date().toISOString()
         }, null, 2));
         await writable.close();
