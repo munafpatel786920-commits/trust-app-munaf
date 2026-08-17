@@ -287,6 +287,18 @@ export interface InventoryItem {
   descriptionGuj: string;
 }
 
+export interface BillPaymentRecord {
+  id: string;
+  receiptNumber: string;
+  date: string;
+  amount: number;
+  paymentMode: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
+  bankId?: string;
+  bankNameGuj?: string;
+  remarksGuj?: string;
+  createdAt?: string;
+}
+
 export interface PurchaseBill {
   id: string;
   billNumber: string;
@@ -311,6 +323,7 @@ export interface PurchaseBill {
   settlementMode?: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
   settlementBankId?: string;
   settlementRemarksGuj?: string;
+  paymentHistory?: BillPaymentRecord[];
 }
 
 export interface SalesBill {
@@ -337,5 +350,6 @@ export interface SalesBill {
   settlementMode?: 'રોકડ (Cash)' | 'બેંક ટ્રાન્સફર (Bank)' | 'ચેક (Cheque)';
   settlementBankId?: string;
   settlementRemarksGuj?: string;
+  paymentHistory?: BillPaymentRecord[];
 }
 
