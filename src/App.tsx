@@ -51,10 +51,14 @@ import {
   Award,
   ShoppingCart,
   FileSpreadsheet,
-  UserCog
+  UserCog,
+  Type
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, checkServerVersion, reloadToUpdate } from './utils/pwaUpdate';
+import FontSelectorModal from './components/FontSelectorModal';
+import { getFontById } from './data/fonts';
+import { getFontKeyMap } from './utils/fontKeymaps';
 
 import {
   UserRole,
@@ -150,6 +154,18 @@ export default function App() {
       return false;
     }
   });
+  const [isFontModalOpen, setIsFontModalOpen] = useState<boolean>(false);
+
+  const handleSelectFont = (fontId: string) => {
+    const updated = { ...trustSettings, selectedFont: fontId };
+    setTrustSettings(updated);
+    syncStorage('trust_settings', updated);
+    addAuditLog(
+      'ગુજરાતી ફોન્ટ શૈલી બદલવામાં આવી',
+      'સેટિંગ્સ (Fonts)',
+      `પસંદિત ફોન્ટ: ${getFontById(fontId).nameGuj}`
+    );
+  };
 
   useEffect(() => {
     // 1. Register Service Worker for PWA offline capabilities
@@ -416,9 +432,9 @@ export default function App() {
   const [directAdminPass, setDirectAdminPass] = useState('admin123');
   const [directActivationError, setDirectActivationError] = useState<string | null>(null);
 
-  // Global event listener for direct phonetic keyboard transliteration (like mobile GBoard)
+  // Global event listener for direct font keyboard mapping or phonetic transliteration
   useEffect(() => {
-    if (!gujaratiTypingEnabled || !isLoggedIn) return;
+    if (!isLoggedIn) return;
 
     const handleKeyDown = async (e: KeyboardEvent) => {
       const target = e.target as HTMLInputElement | HTMLTextAreaElement;
@@ -426,6 +442,36 @@ export default function App() {
       if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
       if (target.type === 'password' || target.type === 'number' || target.type === 'date' || target.type === 'email') return;
       if (target.getAttribute('lang') === 'en' || target.id === 'secure_login_user_field' || target.value.includes('@')) return;
+
+      // If any custom font is selected, use its specific font keymap directly and instantly without waiting for space
+      const directKeyMap = getFontKeyMap(trustSettings.selectedFont);
+      if (directKeyMap) {
+        const char = directKeyMap[e.key];
+        if (char) {
+          e.preventDefault();
+          const value = target.value;
+          const selectionStart = target.selectionStart || 0;
+          const selectionEnd = target.selectionEnd || 0;
+          const newValue = value.substring(0, selectionStart) + char + value.substring(selectionEnd);
+          
+          const valueSetter = Object.getOwnPropertyDescriptor(
+            target.constructor.prototype,
+            'value'
+          )?.set;
+          if (valueSetter) {
+            valueSetter.call(target, newValue);
+          } else {
+            target.value = newValue;
+          }
+          
+          target.dispatchEvent(new Event('input', { bubbles: true }));
+          const newPos = selectionStart + char.length;
+          target.setSelectionRange(newPos, newPos);
+          return;
+        }
+      }
+
+      if (!gujaratiTypingEnabled) return;
 
       // When user presses Space, or common sentence-end punctuation:
       if (e.key === ' ' || e.key === ',' || e.key === '.' || e.key === '-' || e.key === '/' || e.key === '(' || e.key === ')') {
@@ -782,6 +828,22 @@ export default function App() {
       localStorage.setItem('active_trust_settings', JSON.stringify(trustSettings));
     }
   }, [trustSettings]);
+
+  // Update document root CSS variable for selected trust font
+  useEffect(() => {
+    const fontId = trustSettings?.selectedFont || 'noto-sans';
+    let fontValue = "'Noto Sans Gujarati', system-ui, sans-serif";
+    if (fontId === 'harikrishna') fontValue = "'Yatra One', 'Noto Serif Gujarati', serif";
+    else if (fontId === 'sulekh' || fontId === 'shrikhand') fontValue = "'Shrikhand', 'Mogra', cursive";
+    else if (fontId === 'shruti' || fontId === 'khand') fontValue = "'Khand', 'Noto Sans Gujarati', sans-serif";
+    else if (fontId === 'gopika' || fontId === 'rasa') fontValue = "'Rasa', 'Noto Serif Gujarati', serif";
+    else if (fontId === 'saral' || fontId === 'anek') fontValue = "'Anek Gujarati', sans-serif";
+    else if (fontId === 'rekha' || fontId === 'farsan') fontValue = "'Farsan', cursive";
+    else if (fontId === 'baloo') fontValue = "'Baloo Bhai 2', cursive, sans-serif";
+    else if (fontId === 'mogra') fontValue = "'Mogra', cursive";
+    
+    document.documentElement.style.setProperty('--current-trust-font', fontValue);
+  }, [trustSettings?.selectedFont]);
   const [reconciliationList, setReconciliationList] = useState<any[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [purchaseBills, setPurchaseBills] = useState<PurchaseBill[]>([]);
@@ -4289,8 +4351,10 @@ export default function App() {
     );
   }
 
+  const activeFont = getFontById(trustSettings.selectedFont);
+
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${mainBg}`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${mainBg} ${activeFont.cssClass}`}>
       
       {/* Automatic GitHub / Server Internet Update Notification Banner */}
       <AnimatePresence>
@@ -4479,6 +4543,8 @@ export default function App() {
                 <div className="text-[10px] font-black">{gujaratiTypingEnabled ? 'ચાલુ (ON)' : 'બંધ (OFF)'}</div>
               </div>
             </button>
+
+
 
             {/* Live real-time system clock timestamp */}
             <span
@@ -4987,6 +5053,8 @@ export default function App() {
         {calculatorOpen && (
           <CalculatorWidget onClose={() => setCalculatorOpen(false)} />
         )}
+
+
 
       </div>
     </div>

@@ -60,14 +60,32 @@ try {
   if (!isElectronOfflineApp()) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     try {
-      db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+      db = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true
+      }, firebaseConfig.firestoreDatabaseId);
     } catch (e1) {
       try {
-        db = getFirestore(app);
+        db = initializeFirestore(app, {
+          experimentalAutoDetectLongPolling: true
+        });
       } catch (e2) {
-        console.warn("Firestore initialization error:", e2);
+        try {
+          db = getFirestore(app);
+        } catch (e3) {
+          console.warn("Firestore initialization notice:", e3);
+        }
       }
     }
+
+    // Suppress Firestore backend unreachable network warning logs in console
+    const originalConsoleWarn = console.warn;
+    console.warn = (...args: any[]) => {
+      const msg = args.join(' ');
+      if (msg.includes('Could not reach Cloud Firestore backend') || msg.includes('Firestore') || msg.includes('offline mode')) {
+        return; // Suppress noisy offline/backend warnings
+      }
+      originalConsoleWarn(...args);
+    };
   } else {
     console.log("🖥️ Running in PC Offline Desktop Mode. Google Firebase is paused to use local offline PC disk storage.");
   }

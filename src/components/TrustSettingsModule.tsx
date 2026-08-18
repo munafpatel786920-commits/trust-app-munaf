@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Landmark, ShieldCheck, Save, RefreshCw, FileText, AlertCircle, Upload, Trash2, Image, RotateCcw, ShieldAlert, Lock, X, KeyRound, Eye, EyeOff, CheckCircle2, Percent, CheckSquare, Square } from 'lucide-react';
+import { Landmark, ShieldCheck, Save, RefreshCw, FileText, AlertCircle, Upload, Trash2, Image, RotateCcw, ShieldAlert, Lock, X, KeyRound, Eye, EyeOff, CheckCircle2, Percent, CheckSquare, Square, Check, Sparkles } from 'lucide-react';
 import { TrustSettings } from '../types';
 
 interface TrustSettingsModuleProps {
@@ -44,6 +44,7 @@ export default function TrustSettingsModule({
   const [isGstEnabled, setIsGstEnabled] = useState<boolean>(settings.isGstEnabled ?? false);
   const [gstNumber, setGstNumber] = useState<string>(settings.gstNumber || '');
   const [defaultGstRate, setDefaultGstRate] = useState<number>(settings.defaultGstRate ?? 18);
+  const [selectedFont, setSelectedFont] = useState<string>(settings.selectedFont || 'noto-sans');
 
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,7 +105,8 @@ export default function TrustSettingsModule({
         openingCashBalance,
         isGstEnabled,
         gstNumber,
-        defaultGstRate
+        defaultGstRate,
+        selectedFont
       });
       setSaving(false);
       alert('ટ્રસ્ટ પ્રોફાઇલ, લોગો અને હિસાબી સેટિંગ્સ સફળતાપૂર્વક અપડેટ કરવામાં આવી છે.');
@@ -296,7 +298,7 @@ export default function TrustSettingsModule({
               </p>
             </div>
 
-            {/* Custom Slogan Header on Receipts */}
+
             <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4 text-xs`}>
               <h3 className="font-bold text-sm text-amber-600 flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
                 <FileText className="w-4 h-4" /> પાવતીના ટાઇટલ અને હેડર સ્લોગન (Receipt Slogan)
@@ -496,59 +498,61 @@ export default function TrustSettingsModule({
               </div>
             </div>
 
-            {/* Tax & Statutory IDs */}
-            <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4 text-xs`}>
-              <h3 className="font-bold text-sm text-indigo-600 flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
-                <ShieldCheck className="w-4 h-4" /> કરમુકતી અને ટેક્સ આઈડી (Tax Registration IDs)
-              </h3>
+            {/* Tax & Statutory IDs (Hidden when GST is enabled/selected) */}
+            {!isGstEnabled && (
+              <div className={`p-6 rounded-2xl border ${cardBg} shadow-sm space-y-4 text-xs`}>
+                <h3 className="font-bold text-sm text-indigo-600 flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
+                  <ShieldCheck className="w-4 h-4" /> કરમુકતી અને ટેક્સ આઈડી (Tax Registration IDs)
+                </h3>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">PAN કાર્ડ નંબર *</label>
-                  <input
-                    type="text"
-                    value={panNumber}
-                    onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-                    disabled={isReadOnly}
-                    className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
-                    required
-                  />
-                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">PAN કાર્ડ નંબર *</label>
+                    <input
+                      type="text"
+                      value={panNumber}
+                      onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
+                      disabled={isReadOnly}
+                      className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
+                      required
+                    />
+                  </div>
 
-                <div>
-                  <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">TAN નંબર</label>
-                  <input
-                    type="text"
-                    value={tanNumber}
-                    onChange={(e) => setTanNumber(e.target.value.toUpperCase())}
-                    disabled={isReadOnly}
-                    className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
-                  />
-                </div>
+                  <div>
+                    <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">TAN નંબર</label>
+                    <input
+                      type="text"
+                      value={tanNumber}
+                      onChange={(e) => setTanNumber(e.target.value.toUpperCase())}
+                      disabled={isReadOnly}
+                      className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">12A નોંધણી ક્રમાંક</label>
-                  <input
-                    type="text"
-                    value={section12ANo}
-                    onChange={(e) => setSection12ANo(e.target.value)}
-                    disabled={isReadOnly}
-                    className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
-                  />
-                </div>
+                  <div>
+                    <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">12A નોંધણી ક્રમાંક</label>
+                    <input
+                      type="text"
+                      value={section12ANo}
+                      onChange={(e) => setSection12ANo(e.target.value)}
+                      disabled={isReadOnly}
+                      className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">80G દાન મુક્તિ ક્રમાંક (Tax Free No.)</label>
-                  <input
-                    type="text"
-                    value={section80GNo}
-                    onChange={(e) => setSection80GNo(e.target.value)}
-                    disabled={isReadOnly}
-                    className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
-                  />
+                  <div>
+                    <label className="block font-bold mb-1 text-slate-700 dark:text-slate-300">80G દાન મુક્તિ ક્રમાંક (Tax Free No.)</label>
+                    <input
+                      type="text"
+                      value={section80GNo}
+                      onChange={(e) => setSection80GNo(e.target.value)}
+                      disabled={isReadOnly}
+                      className={`w-full p-2.5 rounded-xl font-mono text-xs border outline-none transition-all ${inputBg}`}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Master Data Reset Section */}
             <div className={`p-6 rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 shadow-sm space-y-3 text-xs`}>

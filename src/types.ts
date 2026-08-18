@@ -272,6 +272,7 @@ export interface TrustSettings {
   isGstEnabled?: boolean;
   gstNumber?: string;
   defaultGstRate?: number;
+  selectedFont?: string;
 }
 
 export interface InventoryItem {

@@ -2,6 +2,77 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+:root {
+  --current-trust-font: 'Noto Sans Gujarati', system-ui, sans-serif;
+}
+
+/* App UI (menus, buttons, selects, labels, tables, navigation) defaults to clean Noto Sans Gujarati */
+body, div, span, p, h1, h2, h3, h4, h5, h6, button, nav, aside, table, th, td, select, label {
+  font-family: 'Noto Sans Gujarati', system-ui, sans-serif !important;
+}
+
+/* ONLY typing inputs (input, textarea) and document printouts use the selected calligraphy font */
+input, textarea, .trust-document-output, #printable-receipt-container, #printable-voucher-container, #printable-agenda-area, #printable-tharav-area {
+  font-family: var(--current-trust-font) !important;
+}
+
+/* Gujarati Font Families defining the variable */
+.font-noto-sans-gujarati {
+  --current-trust-font: 'Noto Sans Gujarati', system-ui, sans-serif;
+}
+
+.font-harikrishna {
+  --current-trust-font: 'Yatra One', 'Noto Serif Gujarati', serif;
+}
+
+.font-sulekh {
+  --current-trust-font: 'Shrikhand', 'Mogra', cursive;
+}
+
+.font-shruti {
+  --current-trust-font: 'Khand', 'Noto Sans Gujarati', sans-serif;
+}
+
+.font-gopika {
+  --current-trust-font: 'Rasa', 'Noto Serif Gujarati', serif;
+}
+
+.font-saral {
+  --current-trust-font: 'Anek Gujarati', 'Noto Sans Gujarati', sans-serif;
+}
+
+.font-rekha {
+  --current-trust-font: 'Farsan', 'Noto Sans Gujarati', sans-serif;
+}
+
+.font-anek {
+  --current-trust-font: 'Anek Gujarati', sans-serif;
+}
+
+.font-noto-serif {
+  --current-trust-font: 'Noto Serif Gujarati', serif;
+}
+
+.font-baloo {
+  --current-trust-font: 'Baloo Bhai 2', cursive, sans-serif;
+}
+
+.font-rasa {
+  --current-trust-font: 'Rasa', serif;
+}
+
+.font-farsan {
+  --current-trust-font: 'Farsan', cursive;
+}
+
+.font-mogra {
+  --current-trust-font: 'Mogra', cursive;
+}
+
+.font-shrikhand {
+  --current-trust-font: 'Shrikhand', cursive;
+}
+
 @media print {
   html, body {
     background-color: #ffffff !important;

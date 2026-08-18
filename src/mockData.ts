@@ -141,7 +141,8 @@ export const DEFAULT_TRUST_SETTINGS: TrustSettings = {
   openingCashBalance: 0,
   isGstEnabled: false,
   gstNumber: '',
-  defaultGstRate: 18
+  defaultGstRate: 18,
+  selectedFont: 'noto-sans'
 };
 
 export const DEFAULT_THARAVS: AgendaTharav[] = [];
