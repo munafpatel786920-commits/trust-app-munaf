@@ -56,9 +56,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { registerServiceWorker, checkServerVersion, reloadToUpdate } from './utils/pwaUpdate';
-import FontSelectorModal from './components/FontSelectorModal';
-import { getFontById } from './data/fonts';
-import { getFontKeyMap } from './utils/fontKeymaps';
+
 
 import {
   UserRole,
@@ -154,18 +152,7 @@ export default function App() {
       return false;
     }
   });
-  const [isFontModalOpen, setIsFontModalOpen] = useState<boolean>(false);
 
-  const handleSelectFont = (fontId: string) => {
-    const updated = { ...trustSettings, selectedFont: fontId };
-    setTrustSettings(updated);
-    syncStorage('trust_settings', updated);
-    addAuditLog(
-      'ગુજરાતી ફોન્ટ શૈલી બદલવામાં આવી',
-      'સેટિંગ્સ (Fonts)',
-      `પસંદિત ફોન્ટ: ${getFontById(fontId).nameGuj}`
-    );
-  };
 
   useEffect(() => {
     // 1. Register Service Worker for PWA offline capabilities
@@ -437,41 +424,16 @@ export default function App() {
     if (!isLoggedIn) return;
 
     const handleKeyDown = async (e: KeyboardEvent) => {
+      if (activeTab === 'superadmin') return;
       const target = e.target as HTMLInputElement | HTMLTextAreaElement;
       if (!target) return;
       if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
       if (target.type === 'password' || target.type === 'number' || target.type === 'date' || target.type === 'email') return;
       if (target.getAttribute('lang') === 'en' || target.id === 'secure_login_user_field' || target.value.includes('@')) return;
 
-      // If any custom font is selected, use its specific font keymap directly and instantly without waiting for space
-      const directKeyMap = getFontKeyMap(trustSettings.selectedFont);
-      if (directKeyMap) {
-        const char = directKeyMap[e.key];
-        if (char) {
-          e.preventDefault();
-          const value = target.value;
-          const selectionStart = target.selectionStart || 0;
-          const selectionEnd = target.selectionEnd || 0;
-          const newValue = value.substring(0, selectionStart) + char + value.substring(selectionEnd);
-          
-          const valueSetter = Object.getOwnPropertyDescriptor(
-            target.constructor.prototype,
-            'value'
-          )?.set;
-          if (valueSetter) {
-            valueSetter.call(target, newValue);
-          } else {
-            target.value = newValue;
-          }
-          
-          target.dispatchEvent(new Event('input', { bubbles: true }));
-          const newPos = selectionStart + char.length;
-          target.setSelectionRange(newPos, newPos);
-          return;
-        }
-      }
-
       if (!gujaratiTypingEnabled) return;
+
+
 
       // When user presses Space, or common sentence-end punctuation:
       if (e.key === ' ' || e.key === ',' || e.key === '.' || e.key === '-' || e.key === '/' || e.key === '(' || e.key === ')') {
@@ -4351,10 +4313,8 @@ export default function App() {
     );
   }
 
-  const activeFont = getFontById(trustSettings.selectedFont);
-
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${mainBg} ${activeFont.cssClass}`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${mainBg} font-noto-sans-gujarati`}>
       
       {/* Automatic GitHub / Server Internet Update Notification Banner */}
       <AnimatePresence>
@@ -4545,8 +4505,6 @@ export default function App() {
             </button>
 
 
-
-            {/* Live real-time system clock timestamp */}
             <span
               className="text-slate-600 dark:text-slate-300 font-mono font-bold text-xs hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm shrink-0"
               title="લાઇવ સિસ્ટમ તારીખ અને સમય"
