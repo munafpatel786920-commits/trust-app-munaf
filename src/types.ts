@@ -354,3 +354,66 @@ export interface SalesBill {
   paymentHistory?: BillPaymentRecord[];
 }
 
+export interface TrustFixedDeposit {
+  id: string;
+  fdNumber: string;
+  bankNameGuj: string;
+  branchGuj: string;
+  principalAmount: number;
+  interestRate: number; // percentage, e.g. 7.5
+  depositDate: string;
+  maturityDate: string;
+  maturityAmount: number;
+  interestPayout: 'માસિક (Monthly)' | 'ત્રિમાસિક (Quarterly)' | 'વાર્ષિક (Annual)' | 'પાકતી મુદતે (Cumulative on Maturity)';
+  status: 'ચાલુ / સક્રિય (Active)' | 'પાકેલ / બાકી ક્લેમ (Matured)' | 'રીન્યુ કરેલ (Renewed)' | 'રોકડમાં વટાવેલ (Closed/Withdrawn)';
+  remarksGuj?: string;
+  certificateNo?: string;
+}
+
+export interface BudgetItem {
+  id: string;
+  categoryGuj: string;
+  type: 'આવક (Income)' | 'ખર્ચ (Expense)';
+  budgetedAmount: number;
+  notesGuj?: string;
+}
+
+export interface TrustBudgetPlan {
+  id: string;
+  financialYear: string;
+  items: BudgetItem[];
+  totalBudgetedIncome: number;
+  totalBudgetedExpense: number;
+  approvedDate?: string;
+  approvedByGuj?: string;
+}
+
+export interface DonationCertificate80G {
+  id: string;
+  certificateNumber: string;
+  receiptNumber: string;
+  date: string;
+  donorNameGuj: string;
+  donorAddressGuj?: string;
+  donorPan: string;
+  donorAadhar?: string;
+  donorPhone?: string;
+  amount: number;
+  financialYear: string;
+  donationMode: string;
+  purposeGuj: string;
+  createdAt: string;
+}
+
+export interface TrustNotice {
+  id: string;
+  noticeType: 'દાન રસીદ પુષ્ટિ (Donation Receipt)' | 'સાધારણ સભા નોટિસ (Meeting Notice)' | 'સભાસદ / શેર નોટિસ (Member Notice)' | 'લોન હપ્તા રીમાઇન્ડર (Loan Reminder)' | 'સામાન્ય જાહેરાત (General Notice)';
+  recipientNameGuj: string;
+  recipientPhone: string;
+  subjectGuj: string;
+  messageTextGuj: string;
+  sentDate: string;
+  status: 'મોકલેલ (Sent)' | 'ડ્રાફ્ટ (Draft)';
+}
+
+

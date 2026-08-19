@@ -95,15 +95,20 @@ export default function MemberModule({
   // Helper function to identify member category key
   const getMemberCategoryKey = (m: TrustMember): 'sabhasad' | 'trust' | 'staff' => {
     if (m.memberCategory) {
-      if (m.memberCategory.includes('સભાસદ')) return 'sabhasad';
-      if (m.memberCategory.includes('ટ્રસ્ટ') || m.memberCategory.includes('કમિટી')) return 'trust';
-      if (m.memberCategory.includes('કર્મચારી')) return 'staff';
+      const cat = m.memberCategory.toLowerCase();
+      if (cat.includes('સભાસદ') || cat.includes('society') || cat.includes('member') || cat.includes('શેરહોલ્ડર') || cat.includes('સાધારણ') || cat.includes('આજીવન')) {
+        if (!cat.includes('ટ્રસ્ટ') && !cat.includes('કમિટી') && !cat.includes('trustee') && !cat.includes('board')) {
+          return 'sabhasad';
+        }
+      }
+      if (cat.includes('ટ્રસ્ટ') || cat.includes('કમિટી') || cat.includes('trustee') || cat.includes('board')) return 'trust';
+      if (cat.includes('કર્મચારી') || cat.includes('staff') || cat.includes('volunteer') || cat.includes('સ્વયંસેવક') || cat.includes('employee')) return 'staff';
     }
     const r = (m.roleGuj || '').toLowerCase();
-    if (r.includes('ટ્રસ્ટી') || r.includes('પ્રમુખ') || r.includes('મંત્રી') || r.includes('ખજાનચી') || r.includes('કમિટી') || r.includes('ઉપપ્રમુખ')) {
+    if (r.includes('ટ્રસ્ટી') || r.includes('પ્રમુખ') || r.includes('મંત્રી') || r.includes('ખજાનચી') || r.includes('કમિટી') || r.includes('ઉપપ્રમુખ') || r.includes('trustee') || r.includes('president') || r.includes('secretary') || r.includes('treasurer')) {
       return 'trust';
     }
-    if (r.includes('કર્મચારી') || r.includes('સ્વયંસેવક')) {
+    if (r.includes('કર્મચારી') || r.includes('સ્વયંસેવક') || r.includes('staff') || r.includes('employee') || r.includes('volunteer') || r.includes('peon') || r.includes('clerk')) {
       return 'staff';
     }
     return 'sabhasad';
@@ -364,17 +369,18 @@ export default function MemberModule({
   // Filtered lists
   const filteredMembers = members.filter(m => {
     const cat = getMemberCategoryKey(m);
-    if (viewMode === 'sabhasad' && cat !== 'sabhasad') return false;
-    if (viewMode === 'trust' && cat !== 'trust') return false;
     if (categoryFilter !== 'all' && cat !== categoryFilter) return false;
 
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
     return (
-      m.nameGuj.toLowerCase().includes(q) ||
+      (m.nameGuj && m.nameGuj.toLowerCase().includes(q)) ||
       (m.memberNo && m.memberNo.toLowerCase().includes(q)) ||
       (m.folioNumber && m.folioNumber.toLowerCase().includes(q)) ||
       (m.phone && m.phone.includes(q)) ||
-      m.roleGuj.toLowerCase().includes(q)
+      (m.roleGuj && m.roleGuj.toLowerCase().includes(q)) ||
+      (m.email && m.email.toLowerCase().includes(q)) ||
+      (m.addressGuj && m.addressGuj.toLowerCase().includes(q))
     );
   });
 
@@ -972,69 +978,53 @@ export default function MemberModule({
           {/* Filter Pills & Search Bar */}
           <div className={`p-4 rounded-2xl border ${cardBg} space-y-3`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              {viewMode === 'trust' ? (
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-200 border border-amber-200 dark:border-amber-800 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-amber-600" />
-                    ટ્રસ્ટ હોદ્દેદારો & કમિટી સભ્યોની રજીસ્ટર ડાયરેક્ટરી
-                  </span>
-                </div>
-              ) : viewMode === 'sabhasad' ? (
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-emerald-600" />
-                    સભાસદો & શેરહોલ્ડર્સની રજીસ્ટર ડાયરેક્ટરી
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
-                    <Filter className="w-3.5 h-3.5" /> વર્ગીકરણ:
-                  </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5" /> વર્ગીકરણ ફિલ્ટર:
+                </span>
+                <button
+                  onClick={() => setCategoryFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    categoryFilter === 'all'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  બધા સભ્યો ({members.length})
+                </button>
+                <button
+                  onClick={() => setCategoryFilter('sabhasad')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    categoryFilter === 'sabhasad'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 hover:bg-slate-200'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" /> સભાસદો ({sabhasadMembers.length})
+                </button>
+                <button
+                  onClick={() => setCategoryFilter('trust')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    categoryFilter === 'trust'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 hover:bg-slate-200'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" /> ટ્રસ્ટ / કમિટી હોદ્દેદારો ({trustBoardMembers.length})
+                </button>
+                {staffMembers.length > 0 && (
                   <button
-                    onClick={() => setCategoryFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                      categoryFilter === 'all'
-                        ? 'bg-indigo-600 text-white shadow-xs'
+                    onClick={() => setCategoryFilter('staff')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      categoryFilter === 'staff'
+                        ? 'bg-slate-700 text-white shadow-xs'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                     }`}
                   >
-                    બધા સભ્યો ({members.length})
+                    કર્મચારી / અન્ય ({staffMembers.length})
                   </button>
-                  <button
-                    onClick={() => setCategoryFilter('sabhasad')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      categoryFilter === 'sabhasad'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 hover:bg-slate-200'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5" /> સભાસદો ({sabhasadMembers.length})
-                  </button>
-                  <button
-                    onClick={() => setCategoryFilter('trust')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      categoryFilter === 'trust'
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 hover:bg-slate-200'
-                    }`}
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" /> ટ્રસ્ટ / કમિટી હોદ્દેદારો ({trustBoardMembers.length})
-                  </button>
-                  {staffMembers.length > 0 && (
-                    <button
-                      onClick={() => setCategoryFilter('staff')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                        categoryFilter === 'staff'
-                          ? 'bg-slate-700 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
-                    >
-                      કર્મચારી / અન્ય ({staffMembers.length})
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
               <div className="text-xs text-slate-400 font-bold">
                 બતાવી રહ્યા છે: {filteredMembers.length} {viewMode === 'trust' ? 'ટ્રસ્ટ સભ્યો' : 'સભાસદો'}

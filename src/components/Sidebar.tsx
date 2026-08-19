@@ -31,7 +31,8 @@ import {
   Landmark,
   Cloud,
   CheckCircle2,
-  HardDrive
+  HardDrive,
+  MessageSquare
 } from 'lucide-react';
 import { TrustSettings } from '../types';
 
@@ -70,6 +71,8 @@ interface SidebarProps {
     assets?: number;
     documents?: number;
     tharavs?: number;
+    fixedDeposits?: number;
+    certificates80g?: number;
   };
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -160,6 +163,20 @@ export default function Sidebar({
           badge: counts.banks,
           badgeColor: 'bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200',
           accentColor: 'text-sky-500'
+        },
+        {
+          id: 'fixed_deposits',
+          labelGuj: 'મુદ્દતી થાપણ & FD રજિસ્ટર',
+          icon: Landmark,
+          badge: counts.fixedDeposits,
+          badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200',
+          accentColor: 'text-amber-500'
+        },
+        {
+          id: 'budget',
+          labelGuj: 'વાર્ષિક અંદાજપત્ર (Budget)',
+          icon: FileSpreadsheet,
+          accentColor: 'text-indigo-500'
         }
       ]
     },
@@ -173,6 +190,14 @@ export default function Sidebar({
           badge: counts.donors,
           badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200',
           accentColor: 'text-purple-500'
+        },
+        {
+          id: 'tax_80g',
+          labelGuj: '૮૦-જી (80G) પ્રમાણપત્ર',
+          icon: Award,
+          badge: counts.certificates80g,
+          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+          accentColor: 'text-emerald-500'
         },
         {
           id: 'members',
@@ -210,7 +235,7 @@ export default function Sidebar({
       ]
     },
     {
-      labelGuj: 'દસ્તાવેજો & રેકોર્ડ્સ',
+      labelGuj: 'દસ્તાવેજો & સંચાર',
       items: [
         {
           id: 'documents',
@@ -227,6 +252,12 @@ export default function Sidebar({
           badge: counts.tharavs,
           badgeColor: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-200',
           accentColor: 'text-cyan-500'
+        },
+        {
+          id: 'notices',
+          labelGuj: 'વોટ્સએપ & SMS નોટિસ',
+          icon: MessageSquare,
+          accentColor: 'text-green-500'
         }
       ]
     },

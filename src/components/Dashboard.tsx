@@ -32,7 +32,12 @@ import {
   ArrowDownRight,
   PlusCircle,
   Receipt,
-  CreditCard
+  CreditCard,
+  Percent,
+  Award,
+  Calculator,
+  BellRing,
+  Send
 } from 'lucide-react';
 import { IncomeReceipt, ExpenseVoucher, Donor, BankAccount } from '../types';
 
@@ -202,15 +207,15 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                   <h3 className="text-base font-black">નાણાકીય વ્યવહારો અને હિસાબ (Financials & Accounts)</h3>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  આવક પાવતીઓ, ખર્ચ વાઉચર્સ, એક્ટિવ બેંક ખાતાઓ અને મિલકત વ્યવસ્થાપન
+                  આવક પાવતીઓ, ખર્ચ વાઉચર્સ, એક્ટિવ બેંક ખાતાઓ, ફિક્સ ડિપોઝિટ, વાર્ષિક બજેટ અને મિલકતો
                 </p>
               </div>
               <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
-                કુલ ૬ મોડ્યુલ્સ
+                કુલ ૮ મોડ્યુલ્સ
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-6 py-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3 sm:gap-4 md:gap-5 py-2">
               <button
                 type="button"
                 onClick={() => onSelectTab('receipts')}
@@ -247,6 +252,32 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                 </div>
                 <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors leading-snug">
                   બેંક ખાતાઓ
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectTab('fixed_deposits')}
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
+              >
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-100/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <Percent className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
+                </div>
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug">
+                  મુદ્દતી થાપણ (FD)
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectTab('budget')}
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
+              >
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-indigo-50 text-indigo-600 border border-indigo-100/80 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <Calculator className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
+                </div>
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
+                  વાર્ષિક બજેટ
                 </span>
               </button>
 
@@ -300,15 +331,15 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                   <h3 className="text-base font-black">ટ્રસ્ટ વહીવટ અને રજીસ્ટર (Trust Registry & Administration)</h3>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  દાતાઓ, સભાસદો, ટ્રસ્ટ બોર્ડ હોદ્દેદારો, ઠરાવ પુસ્તિકા અને દસ્તાવેજો
+                  દાતાઓ, ૮૦-જી ટેક્સ સર્ટિફિકેટ, સભાસદો, ટ્રસ્ટ બોર્ડ હોદ્દેદારો, નોટિસ સંચાર, ઠરાવ અને દસ્તાવેજો
                 </p>
               </div>
               <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full border border-emerald-200/80 dark:border-emerald-800 shrink-0">
-                કુલ ૫ મોડ્યુલ્સ
+                કુલ ૭ મોડ્યુલ્સ
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-6 py-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 py-2">
               <button
                 type="button"
                 onClick={() => onSelectTab('donors')}
@@ -319,6 +350,19 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                 </div>
                 <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
                   દાતાઓ
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectTab('tax_80g')}
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
+              >
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-100/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <Award className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
+                </div>
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-snug">
+                  ૮૦-જી (80G) સર્ટિ.
                 </span>
               </button>
 
@@ -345,6 +389,19 @@ export default function Dashboard({ receipts, vouchers, donors, banks, currentUs
                 </div>
                 <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors leading-snug">
                   ટ્રસ્ટ હોદ્દેદારો
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectTab('notices')}
+                className="w-full p-2 py-4 md:py-5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 text-center group"
+              >
+                <div className="w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 rounded-2xl sm:rounded-3xl bg-amber-50 text-amber-600 border border-amber-100/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-xs shrink-0">
+                  <BellRing className="w-8 h-8 sm:w-9 sm:h-9" strokeWidth={1.8} />
+                </div>
+                <span className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-snug">
+                  નોટિસ સેન્ટર
                 </span>
               </button>
 

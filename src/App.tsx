@@ -76,7 +76,11 @@ import {
   PurchaseBill,
   SalesBill,
   MemberSharePurchase,
-  MemberLoanApplication
+  MemberLoanApplication,
+  TrustFixedDeposit,
+  TrustBudgetPlan,
+  DonationCertificate80G,
+  TrustNotice
 } from './types';
 
 import {
@@ -96,7 +100,11 @@ import {
   DEFAULT_PURCHASE_BILLS,
   DEFAULT_SALES_BILLS,
   DEFAULT_SHARE_PURCHASES,
-  DEFAULT_LOAN_APPLICATIONS
+  DEFAULT_LOAN_APPLICATIONS,
+  DEFAULT_FIXED_DEPOSITS,
+  DEFAULT_BUDGET_PLAN,
+  DEFAULT_80G_CERTIFICATES,
+  DEFAULT_NOTICES
 } from './mockData';
 
 // Import our custom modules
@@ -117,6 +125,11 @@ import AgendaTharavModule from './components/AgendaTharavModule';
 import UserManagementModule from './components/UserManagementModule';
 import CalculatorWidget from './components/CalculatorWidget';
 import Sidebar from './components/Sidebar';
+import FDModule from './components/FDModule';
+import Tax80GModule from './components/Tax80GModule';
+import BudgetModule from './components/BudgetModule';
+import NoticeModule from './components/NoticeModule';
+import QuickSearchModal from './components/QuickSearchModal';
 import { translitWord, localTransliterate } from './utils/transliterator';
 import { 
   db, 
@@ -812,6 +825,11 @@ export default function App() {
   const [salesBills, setSalesBills] = useState<SalesBill[]>([]);
   const [sharePurchases, setSharePurchases] = useState<MemberSharePurchase[]>([]);
   const [loanApplications, setLoanApplications] = useState<MemberLoanApplication[]>([]);
+  const [fixedDeposits, setFixedDeposits] = useState<TrustFixedDeposit[]>([]);
+  const [budgetPlan, setBudgetPlan] = useState<TrustBudgetPlan>(DEFAULT_BUDGET_PLAN);
+  const [certificates80g, setCertificates80g] = useState<DonationCertificate80G[]>([]);
+  const [notices, setNotices] = useState<TrustNotice[]>([]);
+  const [quickSearchOpen, setQuickSearchOpen] = useState<boolean>(false);
 
   // Navigation state
   const [activeTab, setActiveTab] = useState<string>('control_panel');
@@ -1221,15 +1239,25 @@ export default function App() {
   // Super Admin Dedicated Auth States
   const [isSuperAdminAuthenticated, setIsSuperAdminAuthenticated] = useState<boolean>(false);
 
-  // Close search dropdown on click outside
+  // Close search dropdown on click outside & setup Ctrl+K hotkey for Quick Search
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
         setGlobalSearchOpen(false);
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setQuickSearchOpen(prev => !prev);
+      }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Helper to check if a user is one of the default mock users
@@ -1263,13 +1291,13 @@ export default function App() {
   };
 
   const isTabAllowedForRole = (tab: string, role: UserRole): boolean => {
-    if (tab === 'dashboard') return true;
+    if (tab === 'dashboard' || tab === 'control_panel') return true;
     if (role === 'Admin') return true;
     if (role === 'Accountant') {
       return !['users', 'settings'].includes(tab);
     }
     if (role === 'DataEntry' || role === 'ReadOnly') {
-      return !['banks', 'accounting', 'backup', 'settings', 'users'].includes(tab);
+      return !['banks', 'accounting', 'fixed_deposits', 'budget', 'backup', 'settings', 'users'].includes(tab);
     }
     return false;
   };
@@ -1277,17 +1305,22 @@ export default function App() {
   const getTabTitleGuj = (tabId: string): string => {
     switch (tabId) {
       case 'dashboard': return 'ડેશબોર્ડ & એનાલિટિક્સ';
+      case 'control_panel': return 'કંટ્રોલ પેનલ';
       case 'receipts': return 'આવક પાવતીઓ';
       case 'vouchers': return 'ખર્ચ વાઉચર્સ';
       case 'banks': return 'બેંક ખાતાઓ';
       case 'accounting': return 'દ્વિ-નોંધી નામું';
+      case 'fixed_deposits': return 'મુદ્દતી થાપણ (FD) રજિસ્ટર';
+      case 'budget': return 'વાર્ષિક અંદાજપત્ર (Budget)';
       case 'donors': return 'દાતાઓ';
-      case 'members': return 'સભાસદો';
+      case 'tax_80g': return '૮૦-જી (80G) પ્રમાણપત્ર';
+      case 'members': return 'સભાસદો & શેર/લોન';
       case 'trust_members': return 'ટ્રસ્ટ હોદ્દેદારો';
       case 'assets': return 'સ્થાયી મિલકતો';
       case 'purchase_sales': return 'ખરીદી અને વેચાણ';
       case 'documents': return 'દસ્તાવેજો';
       case 'tharav': return 'એજન્ડા & ઠરાવ';
+      case 'notices': return 'વોટ્સએપ & SMS નોટિસ';
       case 'backup': return 'ઓટો બેકઅપ';
       case 'settings': return 'ટ્રસ્ટ સેટિંગ્સ';
       case 'users': return 'વપરાશકર્તાઓ';
@@ -1906,6 +1939,46 @@ export default function App() {
       setLoanApplications(initialLoans);
       localStorage.setItem(getScopedKeyLocal('trust_loan_applications'), JSON.stringify(initialLoans));
     }
+
+    // Load Fixed Deposits
+    const storedFDs = localStorage.getItem(getScopedKeyLocal('trust_fixed_deposits'));
+    if (storedFDs) {
+      setFixedDeposits(JSON.parse(storedFDs));
+    } else {
+      const initialFDs: TrustFixedDeposit[] = DEFAULT_FIXED_DEPOSITS;
+      setFixedDeposits(initialFDs);
+      localStorage.setItem(getScopedKeyLocal('trust_fixed_deposits'), JSON.stringify(initialFDs));
+    }
+
+    // Load Budget Plan
+    const storedBudget = localStorage.getItem(getScopedKeyLocal('trust_budget_plan'));
+    if (storedBudget) {
+      setBudgetPlan(JSON.parse(storedBudget));
+    } else {
+      const initialBudget: TrustBudgetPlan = DEFAULT_BUDGET_PLAN;
+      setBudgetPlan(initialBudget);
+      localStorage.setItem(getScopedKeyLocal('trust_budget_plan'), JSON.stringify(initialBudget));
+    }
+
+    // Load 80G Certificates
+    const stored80G = localStorage.getItem(getScopedKeyLocal('trust_certificates_80g'));
+    if (stored80G) {
+      setCertificates80g(JSON.parse(stored80G));
+    } else {
+      const initial80G: DonationCertificate80G[] = DEFAULT_80G_CERTIFICATES;
+      setCertificates80g(initial80G);
+      localStorage.setItem(getScopedKeyLocal('trust_certificates_80g'), JSON.stringify(initial80G));
+    }
+
+    // Load Notices
+    const storedNotices = localStorage.getItem(getScopedKeyLocal('trust_notices'));
+    if (storedNotices) {
+      setNotices(JSON.parse(storedNotices));
+    } else {
+      const initialNotices: TrustNotice[] = DEFAULT_NOTICES;
+      setNotices(initialNotices);
+      localStorage.setItem(getScopedKeyLocal('trust_notices'), JSON.stringify(initialNotices));
+    }
   }, [currentSessionUser?.id, currentSessionUser?.username]);
 
   // Auto-save database to PC File if connected and permitted
@@ -1931,6 +2004,10 @@ export default function App() {
           trust_inventory_items: inventoryItems,
           trust_purchase_bills: purchaseBills,
           trust_sales_bills: salesBills,
+          trust_fixed_deposits: fixedDeposits,
+          trust_budget_plan: budgetPlan,
+          trust_certificates_80g: certificates80g,
+          trust_notices: notices,
           last_saved_at: new Date().toISOString()
         };
         const writable = await fileHandle.createWritable();
@@ -2830,7 +2907,7 @@ export default function App() {
       ...newM,
       id: 'mbr-' + Date.now()
     };
-    const updated = [...members, member];
+    const updated = [member, ...members];
     setMembers(updated);
     syncStorage('trust_members', updated);
 
@@ -3077,6 +3154,115 @@ export default function App() {
     );
   };
 
+  // Fixed Deposit Handlers
+  const handleAddFD = (newFDData: Omit<TrustFixedDeposit, 'id'>) => {
+    const newFD: TrustFixedDeposit = {
+      ...newFDData,
+      id: 'fd-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
+    };
+    const updated = [newFD, ...fixedDeposits];
+    setFixedDeposits(updated);
+    syncStorage('trust_fixed_deposits', updated);
+    addAuditLog(
+      'નવી મુદતી થાપણ (FD) નોંધાઈ',
+      'ફિક્સ ડિપોઝિટ (Fixed Deposit)',
+      `FD નં: ${newFD.fdNumber}, બેંક: ${newFD.bankNameGuj}, રકમ: ₹ ${newFD.principalAmount.toLocaleString('en-IN')}`
+    );
+  };
+
+  const handleEditFD = (updatedFD: TrustFixedDeposit) => {
+    const updated = fixedDeposits.map(f => f.id === updatedFD.id ? updatedFD : f);
+    setFixedDeposits(updated);
+    syncStorage('trust_fixed_deposits', updated);
+    addAuditLog(
+      'મુદતી થાપણ (FD) વિગતો સુધારી',
+      'ફિક્સ ડિપોઝિટ (Fixed Deposit)',
+      `FD નં: ${updatedFD.fdNumber}, સ્થિતિ: ${updatedFD.status}`
+    );
+  };
+
+  const handleDeleteFD = (id: string) => {
+    const target = fixedDeposits.find(f => f.id === id);
+    if (!target) return;
+    const updated = fixedDeposits.filter(f => f.id !== id);
+    setFixedDeposits(updated);
+    syncStorage('trust_fixed_deposits', updated);
+    addAuditLog(
+      'મુદતી થાપણ (FD) રદ કરાઈ',
+      'ફિક્સ ડિપોઝિટ (Fixed Deposit)',
+      `FD નં: ${target.fdNumber}, રકમ: ₹ ${target.principalAmount}`
+    );
+  };
+
+  // Budget Plan Handler
+  const handleSaveBudgetPlan = (plan: TrustBudgetPlan) => {
+    setBudgetPlan(plan);
+    syncStorage('trust_budget_plan', plan);
+    addAuditLog(
+      'વાર્ષિક અંદાજપત્ર (Budget) સાચવવામાં આવ્યું',
+      'બજેટ મોડ્યુલ (Annual Budget)',
+      `નાણાકીય વર્ષ: ${plan.financialYear}, અંદાજિત આવક: ₹ ${(plan.totalBudgetedIncome || 0).toLocaleString('en-IN')}, અંદાજિત ખર્ચ: ₹ ${(plan.totalBudgetedExpense || 0).toLocaleString('en-IN')}`
+    );
+  };
+
+  // 80G Certificate Handlers
+  const handleAddCertificate80G = (certData: Omit<DonationCertificate80G, 'id'>) => {
+    const newCert: DonationCertificate80G = {
+      ...certData,
+      id: 'cert80g-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
+    };
+    const updated = [newCert, ...certificates80g];
+    setCertificates80g(updated);
+    syncStorage('trust_certificates_80g', updated);
+    addAuditLog(
+      '૮૦-જી દાન પ્રમાણપત્ર ઈશ્યુ કરાયું',
+      '૮૦-જી પ્રમાણપત્ર (80G Certificate)',
+      `સર્ટિ. નં: ${newCert.certificateNumber}, દાતા: ${newCert.donorNameGuj}, રકમ: ₹ ${newCert.amount.toLocaleString('en-IN')}`
+    );
+  };
+
+  const handleDeleteCertificate80G = (id: string) => {
+    const target = certificates80g.find(c => c.id === id);
+    if (!target) return;
+    const updated = certificates80g.filter(c => c.id !== id);
+    setCertificates80g(updated);
+    syncStorage('trust_certificates_80g', updated);
+    addAuditLog(
+      '૮૦-જી પ્રમાણપત્ર રદ કરાયું',
+      '૮૦-જી પ્રમાણપત્ર (80G Certificate)',
+      `સર્ટિ. નં: ${target.certificateNumber}`
+    );
+  };
+
+  // Notice Handlers
+  const handleAddNotice = (noticeData: Omit<TrustNotice, 'id'>) => {
+    const newNotice: TrustNotice = {
+      ...noticeData,
+      id: 'notc-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
+    };
+    const updated = [newNotice, ...notices];
+    setNotices(updated);
+    syncStorage('trust_notices', updated);
+    addAuditLog(
+      'નવી નોટિસ / મેસેજ મોકલાયો',
+      'સંચાર કેન્દ્ર (Notice Center)',
+      `વિષય: ${newNotice.subjectGuj}, પ્રાપ્તકર્તા: ${newNotice.recipientNameGuj} (${newNotice.recipientPhone})`
+    );
+  };
+
+  const handleDeleteNotice = (id: string) => {
+    const target = notices.find(n => n.id === id);
+    if (!target) return;
+    const updated = notices.filter(n => n.id !== id);
+    setNotices(updated);
+    syncStorage('trust_notices', updated);
+    addAuditLog(
+      'નોટિસ રેકોર્ડ રદ કરાયો',
+      'સંચાર કેન્દ્ર (Notice Center)',
+      `વિષય: ${target.titleGuj}`
+    );
+  };
+
   // Master Factory Reset Handler with Admin Username & Password Authentication
   const handleMasterReset = (adminUsernameInput: string, adminPasswordInput: string): boolean => {
     const cleanUsername = adminUsernameInput.trim().toLowerCase();
@@ -3119,6 +3305,10 @@ export default function App() {
     setSalesBills([]);
     setSharePurchases([]);
     setLoanApplications([]);
+    setFixedDeposits([]);
+    setBudgetPlan(DEFAULT_BUDGET_PLAN);
+    setCertificates80g([]);
+    setNotices([]);
     setAuditLogs([]);
     setGlobalResults([]);
 
@@ -3148,6 +3338,9 @@ export default function App() {
       'trust_sales_bills',
       'trust_share_purchases',
       'trust_loan_applications',
+      'trust_fixed_deposits',
+      'trust_certificates_80g',
+      'trust_notices',
       'trust_audit_logs',
       'trust_aavak_jaavak_register_v1'
     ];
@@ -4482,6 +4675,23 @@ export default function App() {
 
           {/* Right Header items */}
           <div className="flex items-center gap-3 text-xs">
+            {/* Quick Global Search Launcher Button */}
+            <button
+              id="header-btn-quick-search"
+              onClick={() => setQuickSearchOpen(true)}
+              className="p-2 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm shrink-0 text-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+              title="સમગ્ર ટ્રસ્ટ રેકોર્ડ્સમાં સર્ચ કરો (શોર્ટકટ: Ctrl + K)"
+            >
+              <Search className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <div className="text-left leading-none hidden sm:block">
+                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">ઝડપી શોધખોળ</div>
+                <div className="text-[10px] font-black flex items-center gap-1">
+                  <span>શોધો...</span>
+                  <span className="text-[9px] bg-slate-200 dark:bg-slate-700 px-1 py-0.2 rounded font-mono text-slate-600 dark:text-slate-300">Ctrl+K</span>
+                </div>
+              </div>
+            </button>
+
             {/* Direct PC Keyboard Gujarati Transliteration Toggle */}
             <button
               id="header-btn-direct-keyboard"
@@ -4953,6 +5163,57 @@ export default function App() {
 
 
 
+              {activeTab === 'fixed_deposits' && (
+                <FDModule
+                  fixedDeposits={fixedDeposits}
+                  banks={banks}
+                  onAddFD={handleAddFD}
+                  onEditFD={handleEditFD}
+                  onDeleteFD={handleDeleteFD}
+                  darkMode={darkMode}
+                  trustSettings={trustSettings}
+                  currentUser={{ role: currentSessionUser?.role || '' }}
+                />
+              )}
+
+              {activeTab === 'budget' && (
+                <BudgetModule
+                  budgetPlan={budgetPlan}
+                  receipts={receipts}
+                  vouchers={vouchers}
+                  onSaveBudgetPlan={handleSaveBudgetPlan}
+                  darkMode={darkMode}
+                  trustSettings={trustSettings}
+                  currentUser={{ role: currentSessionUser?.role || '' }}
+                />
+              )}
+
+              {activeTab === 'tax_80g' && (
+                <Tax80GModule
+                  certificates={certificates80g}
+                  receipts={receipts}
+                  donors={donors}
+                  onAddCertificate={handleAddCertificate80G}
+                  onDeleteCertificate={handleDeleteCertificate80G}
+                  darkMode={darkMode}
+                  trustSettings={trustSettings}
+                  currentUser={{ role: currentSessionUser?.role || '' }}
+                />
+              )}
+
+              {activeTab === 'notices' && (
+                <NoticeModule
+                  notices={notices}
+                  members={members}
+                  donors={donors}
+                  onAddNotice={handleAddNotice}
+                  onDeleteNotice={handleDeleteNotice}
+                  darkMode={darkMode}
+                  trustSettings={trustSettings}
+                  currentUser={{ role: currentSessionUser?.role || '' }}
+                />
+              )}
+
               {activeTab === 'backup' && (
                 <BackupModule
                   darkMode={darkMode}
@@ -5011,6 +5272,22 @@ export default function App() {
         {calculatorOpen && (
           <CalculatorWidget onClose={() => setCalculatorOpen(false)} />
         )}
+
+        <QuickSearchModal
+          isOpen={quickSearchOpen}
+          onClose={() => setQuickSearchOpen(false)}
+          onNavigate={(tabId) => {
+            setActiveTab(tabId);
+            setQuickSearchOpen(false);
+          }}
+          donors={donors}
+          members={members}
+          receipts={receipts}
+          vouchers={vouchers}
+          fixedDeposits={fixedDeposits}
+          certificates80g={certificates80g}
+          assets={assets}
+        />
 
 
 

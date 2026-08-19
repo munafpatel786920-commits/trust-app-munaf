@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { User, Donor, IncomeReceipt, ExpenseVoucher, TrustMember, BankAccount, Asset, DocumentMeta, AuditLog, TrustLicense, TrustSettings, AgendaTharav, MemberSharePurchase, MemberLoanApplication } from './types';
+import { User, Donor, IncomeReceipt, ExpenseVoucher, TrustMember, BankAccount, Asset, DocumentMeta, AuditLog, TrustLicense, TrustSettings, AgendaTharav, MemberSharePurchase, MemberLoanApplication, TrustFixedDeposit, TrustBudgetPlan, DonationCertificate80G, TrustNotice } from './types';
 
 export const DEFAULT_USERS: User[] = [
   {
@@ -152,3 +152,18 @@ export const DEFAULT_INVENTORY_ITEMS: any[] = [];
 export const DEFAULT_PURCHASE_BILLS: any[] = [];
 
 export const DEFAULT_SALES_BILLS: any[] = [];
+
+export const DEFAULT_FIXED_DEPOSITS: TrustFixedDeposit[] = [];
+
+export const DEFAULT_BUDGET_PLAN: TrustBudgetPlan = {
+  id: 'budget-2026-27',
+  financialYear: '૨૦૨૬-૨૭ (FY 2026-27)',
+  items: [],
+  totalBudgetedIncome: 0,
+  totalBudgetedExpense: 0
+};
+
+export const DEFAULT_80G_CERTIFICATES: DonationCertificate80G[] = [];
+
+export const DEFAULT_NOTICES: TrustNotice[] = [];
+
