@@ -1,39 +1,21 @@
 /// <reference types="vite/client" />
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { setLogLevel } from 'firebase/app';
 import { 
   getFirestore, 
-  initializeFirestore,
+  initializeFirestore, 
   doc, 
   setDoc, 
-  getDoc,
-  deleteDoc,
-  collection, 
+  getDoc, 
   onSnapshot, 
-  getDocs,
-  Firestore
+  deleteDoc, 
+  collection, 
+  getDocs 
 } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-// Configuration loaded from provisioned firebase-applet-config
-const firebaseConfig = {
-  projectId: "inspired-stratum-652jj",
-  appId: "1:280090537452:web:17edc063357bfd5479e4c9",
-  apiKey: "AIzaSyD-VRTS4zwngVgQ1-iT8ZexNsQVNLuxWkQ",
-  authDomain: "inspired-stratum-652jj.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-gujarattrustacco-ac003f56-224c-4b72-b297-bc19665bbdde",
-  storageBucket: "inspired-stratum-652jj.firebasestorage.app",
-  messagingSenderId: "280090537452"
-};
-
-let app: any = null;
-let db: Firestore | null = null;
-
-// Suppress verbose SDK network logs during transient backend connection drops
-try {
-  setLogLevel('error');
-} catch (_) {}
-
-// Determine if the environment is a standalone offline PC Desktop / Electron installation
+/**
+ * Determine if the environment is a standalone offline PC Desktop / Electron installation
+ */
 export const isElectronOfflineApp = (): boolean => {
   if (typeof window === 'undefined') return false;
   const isElectronAPI = Boolean((window as any).electronAPI);
@@ -42,227 +24,204 @@ export const isElectronOfflineApp = (): boolean => {
   return isElectronAPI || isFileProto || isElectronUA;
 };
 
-// Check if running in Online Web mode connected to Cloud
+/**
+ * Check if running in Online Web mode
+ */
 export const isOnlineCloudMode = (): boolean => {
   return !isElectronOfflineApp() && typeof navigator !== 'undefined' && navigator.onLine;
 };
 
-// Helper to wrap promises with a timeout to prevent hanging when offline or network stalls
-const withTimeout = <T>(promise: Promise<T>, ms = 10000): Promise<T> => {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Firestore operation timeout')), ms))
-  ]);
-};
-
-// Initialize Firebase with provisioned Firestore database
-try {
-  if (!isElectronOfflineApp()) {
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    try {
-      db = initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true
-      }, firebaseConfig.firestoreDatabaseId);
-    } catch (e1) {
-      try {
-        db = initializeFirestore(app, {
-          experimentalAutoDetectLongPolling: true
-        });
-      } catch (e2) {
-        try {
-          db = getFirestore(app);
-        } catch (e3) {
-          console.warn("Firestore initialization notice:", e3);
-        }
-      }
-    }
-
-    // Suppress Firestore backend unreachable network warning logs in console
-    const originalConsoleWarn = console.warn;
-    console.warn = (...args: any[]) => {
-      const msg = args.join(' ');
-      if (msg.includes('Could not reach Cloud Firestore backend') || msg.includes('Firestore') || msg.includes('offline mode')) {
-        return; // Suppress noisy offline/backend warnings
-      }
-      originalConsoleWarn(...args);
-    };
-  } else {
-    console.log("🖥️ Running in PC Offline Desktop Mode. Google Firebase is paused to use local offline PC disk storage.");
-  }
-} catch (e) {
-  // Silent catch for offline mode
-}
+let appInstance: any = null;
+let dbInstance: any = null;
 
 /**
- * Sanitize trust name or key for Firestore document ID
+ * Get or initialize Firestore database client (only in online web environments)
+ */
+export const getFirestoreDb = () => {
+  if (isElectronOfflineApp()) {
+    return null;
+  }
+  if (!dbInstance) {
+    try {
+      if (!getApps().length) {
+        appInstance = initializeApp(firebaseConfig);
+      } else {
+        appInstance = getApp();
+      }
+      // Initialize with auto-detect long polling for maximum reliability across cloud runners & web previews
+      dbInstance = initializeFirestore(appInstance, {
+        experimentalAutoDetectLongPolling: true,
+        ignoreUndefinedProperties: true,
+      }, (firebaseConfig as any).firestoreDatabaseId);
+    } catch (err) {
+      try {
+        dbInstance = getFirestore(appInstance, (firebaseConfig as any).firestoreDatabaseId);
+      } catch (fallbackErr) {
+        console.warn("Firestore initialization notice:", fallbackErr);
+      }
+    }
+  }
+  return dbInstance;
+};
+
+export const app = appInstance;
+export const db = dbInstance;
+
+/**
+ * Sanitize trust name or key for document IDs
  */
 export const sanitizeFirestoreDocId = (name: string): string => {
   if (!name) return 'default_trust';
-  return encodeURIComponent(name.trim().toLowerCase().replace(/[\/\#\?\[\]]/g, '_'));
+  const cleaned = name.trim().replace(/[\/\#\?\[\]\s\:\*\"\|\<\>]+/g, '_');
+  return cleaned || 'default_trust';
 };
 
 /**
- * Save specific trust collection/dataset to Google Firebase Firestore
+ * Test Cloud connection to Firebase Firestore
+ */
+export const testFirebaseConnection = async (): Promise<{ success: boolean; message: string }> => {
+  if (isElectronOfflineApp()) {
+    return { success: true, message: 'તમે પીસી ઑફલાઇન ડેસ્કટોપ મોડમાં છો. ડેટા લોકલ પીસીમાં સુરક્ષિત છે.' };
+  }
+  const db = getFirestoreDb();
+  if (!db) {
+    return { success: false, message: 'ફાયરબેઝ ડેટાબેઝ ક્લાયન્ટ શરૂ થઈ શક્યું નથી.' };
+  }
+  try {
+    const testDocRef = doc(db, 'system', 'connection_test');
+    await setDoc(testDocRef, {
+      lastTestedAt: new Date().toISOString(),
+      status: 'active',
+      client: 'Web Cloud Deployment'
+    }, { merge: true });
+    return { success: true, message: 'Google Firebase Firestore સાથે સુરક્ષિત કનેક્શન સફળ થયું છે!' };
+  } catch (err: any) {
+    console.error('Firebase test connection error:', err);
+    return { success: false, message: err?.message || 'કનેક્શન નિષ્ફળ થયું.' };
+  }
+};
+
+/**
+ * Save specific trust dataset / slice to Firebase Firestore
  */
 export const saveTrustDatasetToFirebase = async (
   trustId: string, 
   datasetKey: string, 
   data: any
 ): Promise<boolean> => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return false;
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return false;
+  const db = getFirestoreDb();
+  if (!db) return false;
   try {
-    const docId = sanitizeFirestoreDocId(trustId);
-    const docRef = doc(db, 'trust_records', docId);
-
-    // Strip undefined values which Firebase does not support
-    const cleanData = JSON.parse(JSON.stringify(data));
-
-    await withTimeout(setDoc(docRef, {
-      [datasetKey]: cleanData,
+    const sanitizedId = sanitizeFirestoreDocId(trustId);
+    const docRef = doc(db, 'trusts', sanitizedId);
+    await setDoc(docRef, {
+      [datasetKey]: data,
       last_updated: new Date().toISOString(),
       trust_name: trustId
-    }, { merge: true }), 4000);
-
+    }, { merge: true });
     return true;
-  } catch (err: any) {
-    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
-      console.info(`[Offline sync pending] ${datasetKey} saved locally.`);
-    } else {
-      console.warn(`Firebase Cloud Save failed for [${datasetKey}]:`, err?.message || err);
-    }
+  } catch (err) {
+    console.warn(`[Firebase] Error saving dataset [${datasetKey}]:`, err);
     return false;
   }
 };
 
 /**
- * Save complete Trust state payload to Google Firebase Firestore
+ * Save complete Trust state payload to Firebase Firestore
  */
 export const saveFullTrustToFirebase = async (
   trustId: string, 
   payload: Record<string, any>
 ): Promise<boolean> => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return false;
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return false;
+  const db = getFirestoreDb();
+  if (!db) return false;
   try {
-    const docId = sanitizeFirestoreDocId(trustId);
-    const docRef = doc(db, 'trust_records', docId);
-    
-    // Clean data of undefined values
-    const cleanPayload = JSON.parse(JSON.stringify(payload));
-
-    await withTimeout(setDoc(docRef, {
-      ...cleanPayload,
-      last_cloud_sync: new Date().toISOString(),
+    const sanitizedId = sanitizeFirestoreDocId(trustId);
+    const docRef = doc(db, 'trusts', sanitizedId);
+    await setDoc(docRef, {
+      ...payload,
+      last_updated: new Date().toISOString(),
       trust_name: trustId
-    }, { merge: true }), 5000);
-
+    }, { merge: true });
     return true;
-  } catch (err: any) {
-    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
-      console.info(`[Offline state] Full Trust data saved to local storage.`);
-    } else {
-      console.warn(`Full Firebase Cloud Sync notice for [${trustId}]:`, err?.message || err);
-    }
+  } catch (err) {
+    console.warn(`[Firebase] Error saving full trust [${trustId}]:`, err);
     return false;
   }
 };
 
 /**
- * Completely wipe / reset a trust record from Firebase Firestore
+ * Reset a trust record in Firebase Firestore
  */
 export const resetTrustInFirebase = async (
   trustId: string,
   emptyPayload: Record<string, any>
 ): Promise<boolean> => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return false;
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return false;
+  const db = getFirestoreDb();
+  if (!db) return false;
   try {
-    const docId = sanitizeFirestoreDocId(trustId);
-    const docRef = doc(db, 'trust_records', docId);
-    
-    const cleanPayload = JSON.parse(JSON.stringify(emptyPayload));
-    // Overwrite completely WITHOUT merge so all prior documents/receipts/vouchers are erased
-    await withTimeout(setDoc(docRef, {
-      ...cleanPayload,
-      last_cloud_sync: new Date().toISOString(),
+    const sanitizedId = sanitizeFirestoreDocId(trustId);
+    const docRef = doc(db, 'trusts', sanitizedId);
+    await setDoc(docRef, {
+      ...emptyPayload,
       last_updated: new Date().toISOString(),
       trust_name: trustId,
       is_reset: true
-    }), 5000);
-
+    });
     return true;
-  } catch (err: any) {
-    console.warn(`Reset Firebase Cloud failed for [${trustId}]:`, err?.message || err);
+  } catch (err) {
+    console.warn(`[Firebase] Error resetting trust [${trustId}]:`, err);
     return false;
   }
 };
 
 /**
- * Load complete Trust state from Google Firebase Firestore
+ * Load complete Trust state from Firebase Firestore
  */
 export const loadFullTrustFromFirebase = async (
   trustId: string
 ): Promise<Record<string, any> | null> => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return null;
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return null;
+  const db = getFirestoreDb();
+  if (!db) return null;
   try {
-    const docId = sanitizeFirestoreDocId(trustId);
-    const docRef = doc(db, 'trust_records', docId);
-    const docSnap = await withTimeout(getDoc(docRef), 4000);
-    
-    if (docSnap.exists()) {
-      return docSnap.data();
+    const sanitizedId = sanitizeFirestoreDocId(trustId);
+    const docRef = doc(db, 'trusts', sanitizedId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data();
     }
     return null;
-  } catch (err: any) {
-    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
-      console.info(`[Offline state] Using local storage for ${trustId}.`);
-    } else {
-      console.warn(`Firebase Cloud Fetch notice for [${trustId}]:`, err?.message || err);
-    }
+  } catch (err) {
+    console.warn(`[Firebase] Error loading full trust [${trustId}]:`, err);
     return null;
   }
 };
 
 /**
- * Save all global system licenses & users to Firestore for instant activation across devices
+ * Save all global system licenses & users to Firebase Firestore
  */
 export const saveSystemMasterToFirebase = async (
   licenses: any[] | undefined,
   users: any[] | undefined
 ): Promise<boolean> => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return false;
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return false;
+  const db = getFirestoreDb();
+  if (!db) return false;
   try {
-    const licRef = doc(db, 'system_master', 'licenses');
-    const userRef = doc(db, 'system_master', 'users');
-
-    const promises = [];
-    if (licenses) {
-      const cleanLicenses = JSON.parse(JSON.stringify(licenses));
-      promises.push(setDoc(licRef, { list: cleanLicenses, updated_at: new Date().toISOString() }, { merge: true }));
-    }
-    if (users) {
-      const cleanUsers = JSON.parse(JSON.stringify(users));
-      promises.push(setDoc(userRef, { list: cleanUsers, updated_at: new Date().toISOString() }, { merge: true }));
-    }
-
-    if (promises.length > 0) {
-      await withTimeout(Promise.all(promises), 4000);
-    }
+    const docRef = doc(db, 'system', 'master');
+    const updateData: Record<string, any> = {
+      last_updated: new Date().toISOString()
+    };
+    if (licenses !== undefined) updateData.licenses = licenses;
+    if (users !== undefined) updateData.users = users;
+    await setDoc(docRef, updateData, { merge: true });
     return true;
-  } catch (err: any) {
-    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
-      console.info("[Offline state] System master saved to local storage.");
-    } else {
-      console.warn("Firebase System Master sync notice:", err?.message || err);
-    }
+  } catch (err) {
+    console.warn("[Firebase] Error saving system master:", err);
     return false;
   }
 };
@@ -271,109 +230,92 @@ export const saveSystemMasterToFirebase = async (
  * Load system master licenses & users from Firebase Firestore
  */
 export const loadSystemMasterFromFirebase = async (): Promise<{ licenses: any[]; users: any[] } | null> => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return null;
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return null;
+  const db = getFirestoreDb();
+  if (!db) return null;
   try {
-    const licRef = doc(db, 'system_master', 'licenses');
-    const userRef = doc(db, 'system_master', 'users');
-
-    const [licSnap, userSnap] = await withTimeout(
-      Promise.all([getDoc(licRef), getDoc(userRef)]),
-      4000
-    );
-    
-    return {
-      licenses: licSnap.exists() ? licSnap.data()?.list || [] : [],
-      users: userSnap.exists() ? userSnap.data()?.list || [] : []
-    };
-  } catch (err: any) {
-    if (err?.message?.includes('offline') || err?.message?.includes('timeout')) {
-      console.info("[Offline state] Loading system master from local storage.");
-    } else {
-      console.warn("Firebase System Master notice:", err?.message || err);
+    const docRef = doc(db, 'system', 'master');
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        licenses: data.licenses || [],
+        users: data.users || []
+      };
     }
+    return null;
+  } catch (err) {
+    console.warn("[Firebase] Error loading system master:", err);
     return null;
   }
 };
 
 /**
- * Real-time listener for Trust data from Google Firebase Firestore
+ * Real-time listener for Trust data from Firebase Firestore
  */
 export const subscribeToTrustFirebase = (
   trustId: string,
   onData: (data: any) => void
 ): (() => void) => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return () => {};
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return () => {};
+  const db = getFirestoreDb();
+  if (!db) return () => {};
   try {
-    const docId = sanitizeFirestoreDocId(trustId);
-    const docRef = doc(db, 'trust_records', docId);
-    
+    const sanitizedId = sanitizeFirestoreDocId(trustId);
+    const docRef = doc(db, 'trusts', sanitizedId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         onData(docSnap.data());
       }
     }, (error) => {
-      console.warn("Firebase snapshot listener notice (fallback to local):", error?.message || error);
+      console.warn(`[Firebase] Live subscription notice for trust [${trustId}]:`, error.message);
     });
-
     return unsubscribe;
-  } catch (e) {
+  } catch (err) {
+    console.warn(`[Firebase] Could not subscribe to trust [${trustId}]:`, err);
     return () => {};
   }
 };
 
+/**
+ * Real-time listener for System Master (licenses & users) from Firebase Firestore
+ */
 export const subscribeToSystemMasterFirebase = (
   onData: (data: { licenses?: any[]; users?: any[] }) => void
 ): (() => void) => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return () => {};
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return () => {};
+  const db = getFirestoreDb();
+  if (!db) return () => {};
   try {
-    const licRef = doc(db, 'system_master', 'licenses');
-    const userRef = doc(db, 'system_master', 'users');
-
-    let currentLicenses: any[] | undefined;
-    let currentUsers: any[] | undefined;
-
-    const unsubLic = onSnapshot(licRef, (snap) => {
-      if (snap.exists()) {
-        currentLicenses = snap.data()?.list;
-        onData({ licenses: currentLicenses, users: currentUsers });
+    const docRef = doc(db, 'system', 'master');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        onData(docSnap.data());
       }
-    }, (err) => console.warn("Firebase Licenses listener notice:", err?.message || err));
-
-    const unsubUser = onSnapshot(userRef, (snap) => {
-      if (snap.exists()) {
-        currentUsers = snap.data()?.list;
-        onData({ licenses: currentLicenses, users: currentUsers });
-      }
-    }, (err) => console.warn("Firebase Users listener notice:", err?.message || err));
-
-    return () => {
-      unsubLic();
-      unsubUser();
-    };
-  } catch (e) {
+    }, (error) => {
+      console.warn("[Firebase] Live subscription notice for system master:", error.message);
+    });
+    return unsubscribe;
+  } catch (err) {
+    console.warn("[Firebase] Could not subscribe to system master:", err);
     return () => {};
   }
 };
 
-export { db, app };
-
+/**
+ * Delete a trust completely from Firebase Firestore
+ */
 export const deleteTrustFromFirebase = async (trustName: string): Promise<boolean> => {
-  if (!db || isElectronOfflineApp() || !navigator.onLine) {
-    return false;
-  }
+  if (isElectronOfflineApp() || !isOnlineCloudMode()) return false;
+  const db = getFirestoreDb();
+  if (!db) return false;
   try {
-    const docId = sanitizeFirestoreDocId(trustName);
-    const docRef = doc(db, 'trust_records', docId);
-    await withTimeout(deleteDoc(docRef), 4000);
+    const sanitizedId = sanitizeFirestoreDocId(trustName);
+    const docRef = doc(db, 'trusts', sanitizedId);
+    await deleteDoc(docRef);
     return true;
-  } catch (err: any) {
-    console.warn("Firebase Trust delete failed:", err?.message || err);
+  } catch (err) {
+    console.warn(`[Firebase] Error deleting trust [${trustName}]:`, err);
     return false;
   }
 };

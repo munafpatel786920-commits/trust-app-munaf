@@ -132,31 +132,34 @@ import NoticeModule from './components/NoticeModule';
 import QuickSearchModal from './components/QuickSearchModal';
 import { translitWord, localTransliterate } from './utils/transliterator';
 import { 
-  db, 
   isElectronOfflineApp, 
-  isOnlineCloudMode, 
-  saveTrustDatasetToFirebase, deleteTrustFromFirebase, 
-  saveFullTrustToFirebase, 
+  isOnlineCloudMode,
+  saveTrustDatasetToFirebase,
+  saveFullTrustToFirebase,
   resetTrustInFirebase,
-  loadFullTrustFromFirebase, 
-  saveSystemMasterToFirebase, 
-  loadSystemMasterFromFirebase, 
+  loadFullTrustFromFirebase,
+  saveSystemMasterToFirebase,
+  loadSystemMasterFromFirebase,
   subscribeToTrustFirebase,
-  subscribeToSystemMasterFirebase 
+  subscribeToSystemMasterFirebase,
+  deleteTrustFromFirebase
 } from './lib/firebase';
 
 export default function App() {
   // Hybrid App Mode state ('offline', 'online', 'hybrid')
   const [appMode, setAppMode] = useState<'offline' | 'online' | 'hybrid'>(() => {
-    return (localStorage.getItem('trust_app_mode') as any) || 'hybrid';
+    const saved = localStorage.getItem('trust_app_mode');
+    if (saved) return saved as any;
+    return isElectronOfflineApp() ? 'offline' : 'online';
   });
+
+  const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string>('');
 
   // Online connection status & PWA update status
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [hasAppUpdate, setHasAppUpdate] = useState<boolean>(false);
   const [serverVersionNum, setServerVersionNum] = useState<string>('');
-  const [isFirebaseSyncing, setIsFirebaseSyncing] = useState<boolean>(false);
-  const [lastFirebaseSyncTime, setLastFirebaseSyncTime] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -165,7 +168,6 @@ export default function App() {
       return false;
     }
   });
-
 
   useEffect(() => {
     // 1. Register Service Worker for PWA offline capabilities
@@ -185,9 +187,6 @@ export default function App() {
 
     const handleOnline = () => {
       setIsOnline(true);
-      if (appMode !== 'offline' && !isElectronOfflineApp()) {
-        syncToFirebaseAndCloud();
-      }
       // Check for GitHub / Server updates as soon as internet connects
       checkServerVersion().then((res) => {
         if (res.hasNewVersion) {
@@ -207,7 +206,7 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [appMode]);
+  }, []);
 
   const handleAppModeChange = (mode: 'offline' | 'online' | 'hybrid') => {
     setAppMode(mode);
@@ -217,183 +216,6 @@ export default function App() {
       'સેટિંગ્સ (App Mode)',
       `મોડ સેટ કર્યો: ${mode === 'offline' ? 'ઓફલાઇન (Offline)' : mode === 'online' ? 'ઓનલાઇન (Online)' : 'હાઇબ્રિડ (Hybrid)'}`
     );
-    if (mode !== 'offline' && navigator.onLine && !isElectronOfflineApp()) {
-      syncToFirebaseAndCloud();
-    }
-  };
-
-  const syncToFirebaseAndCloud = async (overrideTrustName?: string) => {
-    if (isElectronOfflineApp() || !navigator.onLine || appMode === 'offline') return;
-    const targetTrust = overrideTrustName || currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
-    try {
-      setIsFirebaseSyncing(true);
-      const payload = {
-        trust_name: targetTrust,
-        donors,
-        receipts,
-        vouchers,
-        banks,
-        members,
-        assets,
-        documents,
-        tharavs,
-        auditLogs,
-        licenses,
-        trustSettings,
-        reconciliationList,
-        inventoryItems,
-        purchaseBills,
-        salesBills,
-        sharePurchases,
-        loanApplications,
-        lastSyncedAt: new Date().toISOString()
-      };
-      await Promise.all([
-        saveFullTrustToFirebase(targetTrust, payload),
-        saveSystemMasterToFirebase(licenses, appUsers)
-      ]);
-      const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLastFirebaseSyncTime(nowTime);
-      console.log(`[Firebase Cloud Sync] ${targetTrust} data synced to Google Firebase at ${nowTime}`);
-    } catch (err) {
-      console.error('Firebase Cloud Sync error:', err);
-    } finally {
-      setTimeout(() => setIsFirebaseSyncing(false), 500);
-    }
-  };
-
-  const mergeList = (localList: any[], cloudList: any[]) => {
-    if (!cloudList || !Array.isArray(cloudList) || cloudList.length === 0) return localList;
-    if (!localList || !Array.isArray(localList) || localList.length === 0) return cloudList;
-    const map = new Map();
-    cloudList.forEach(item => {
-      if (item && item.id) map.set(item.id, item);
-    });
-    localList.forEach(item => {
-      if (item && item.id) map.set(item.id, item);
-    });
-    return Array.from(map.values());
-  };
-
-  const fetchFromFirebaseCloud = async (silent = false, overrideTrustName?: string) => {
-    if (isElectronOfflineApp()) {
-      if (!silent) alert('તમે પીસી ઑફલાઇન ડેસ્કટોપ મોડમાં છો. તમારો ડેટા તમારા પીસીમાં સુરક્ષિત છે.');
-      return;
-    }
-    if (!navigator.onLine || appMode === 'offline') {
-      if (!silent) alert('ઓફલાઇન મોડમાં છો અથવા ઇન્ટરનેટ ઉપલબ્ધ નથી!');
-      return;
-    }
-    const targetTrust = overrideTrustName || currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
-    try {
-      setIsFirebaseSyncing(true);
-      const [cloudTrustData, systemMaster] = await Promise.all([
-        loadFullTrustFromFirebase(targetTrust),
-        loadSystemMasterFromFirebase()
-      ]);
-
-      if (systemMaster) {
-        if (systemMaster.licenses && systemMaster.licenses.length > 0) {
-          setLicenses(systemMaster.licenses);
-          localStorage.setItem('trust_licenses', JSON.stringify(systemMaster.licenses));
-        }
-        if (systemMaster.users && systemMaster.users.length > 0) {
-          setAppUsers(systemMaster.users);
-          localStorage.setItem('trust_users', JSON.stringify(systemMaster.users));
-        }
-      }
-
-      if (cloudTrustData) {
-        const dnr = cloudTrustData.trust_donors ?? cloudTrustData.donors;
-        if (Array.isArray(dnr)) {
-          setDonors(dnr);
-          localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(dnr));
-        }
-        const rcp = cloudTrustData.trust_receipts ?? cloudTrustData.receipts;
-        if (Array.isArray(rcp)) {
-          setReceipts(rcp);
-          localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(rcp));
-        }
-        const vch = cloudTrustData.trust_vouchers ?? cloudTrustData.vouchers;
-        if (Array.isArray(vch)) {
-          setVouchers(vch);
-          localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(vch));
-        }
-        const bnk = cloudTrustData.trust_banks ?? cloudTrustData.banks;
-        if (Array.isArray(bnk)) {
-          setBanks(bnk);
-          localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(bnk));
-        }
-        const mbr = cloudTrustData.trust_members ?? cloudTrustData.members;
-        if (Array.isArray(mbr)) {
-          setMembers(mbr);
-          localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(mbr));
-        }
-        const ast = cloudTrustData.trust_assets ?? cloudTrustData.assets;
-        if (Array.isArray(ast)) {
-          setAssets(ast);
-          localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(ast));
-        }
-        const docList = cloudTrustData.trust_documents ?? cloudTrustData.documents;
-        if (Array.isArray(docList)) {
-          setDocuments(docList);
-          localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(docList));
-        }
-        const thr = cloudTrustData.trust_tharavs ?? cloudTrustData.tharavs;
-        if (Array.isArray(thr)) {
-          setTharavs(thr);
-          localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(thr));
-        }
-        const setts = cloudTrustData.trust_settings ?? cloudTrustData.trustSettings;
-        if (setts) { 
-          const mergedSetts = { ...setts, trustNameGuj: setts.trustNameGuj || targetTrust };
-          setTrustSettings(mergedSetts); 
-          localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(mergedSetts)); 
-        }
-        const rcn = cloudTrustData.trust_reconciliation ?? cloudTrustData.reconciliationList;
-        if (Array.isArray(rcn)) {
-          setReconciliationList(rcn);
-          localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(rcn));
-        }
-        const inv = cloudTrustData.trust_inventory_items ?? cloudTrustData.inventoryItems;
-        if (Array.isArray(inv)) {
-          setInventoryItems(inv);
-          localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(inv));
-        }
-        const pb = cloudTrustData.trust_purchase_bills ?? cloudTrustData.purchaseBills;
-        if (Array.isArray(pb)) {
-          setPurchaseBills(pb);
-          localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(pb));
-        }
-        const sb = cloudTrustData.trust_sales_bills ?? cloudTrustData.salesBills;
-        if (Array.isArray(sb)) {
-          setSalesBills(sb);
-          localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(sb));
-        }
-        const sp = cloudTrustData.trust_share_purchases ?? cloudTrustData.sharePurchases;
-        if (Array.isArray(sp)) {
-          setSharePurchases(sp);
-          localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(sp));
-        }
-        const la = cloudTrustData.trust_loan_applications ?? cloudTrustData.loanApplications;
-        if (Array.isArray(la)) {
-          setLoanApplications(la);
-          localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(la));
-        }
-        
-        const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setLastFirebaseSyncTime(nowTime);
-        if (!silent) alert('ગૂગલ ફાયરબેઝ ક્લાઉડમાંથી ડેટા સફળતાપૂર્વક ડાઉનલોડ અને સિંક થઈ ગયો છે!');
-      } else {
-        await syncToFirebaseAndCloud(targetTrust);
-        if (!silent) alert('ક્લાઉડમાં આ ટ્રસ્ટનો નવો ડેટાબેઝ બન્યો છે અને સ્થાનિક વિગતો ફાયરબેઝ પર અપલોડ થઈ ગઈ છે!');
-      }
-    } catch (err) {
-      console.error('Failed to fetch from Firebase cloud:', err);
-      if (!silent) alert('ક્લાઉડ સિંક નિષ્ફળ.');
-    } finally {
-      setIsFirebaseSyncing(false);
-    }
   };
 
   const [gujaratiTypingEnabled, setGujaratiTypingEnabled] = useState<boolean>(() => {
@@ -908,9 +730,6 @@ export default function App() {
       'સેટિંગ્સ (Trust Settings)',
       `ટ્રસ્ટ નામ: ${updated.trustNameGuj}, નાણાકીય વર્ષ: ${updated.financialYear}`
     );
-    if (appMode !== 'offline' && navigator.onLine) {
-      syncToFirebaseAndCloud();
-    }
   };
 
   // Connect/Create File System handlers
@@ -965,9 +784,42 @@ export default function App() {
           trust_assets: assets,
           trust_documents: documents,
           trust_tharavs: tharavs,
+          trust_reconciliation: reconciliationList,
+          trust_inventory_items: inventoryItems,
+          trust_purchase_bills: purchaseBills,
+          trust_sales_bills: salesBills,
+          trust_share_purchases: sharePurchases,
+          trust_loan_applications: loanApplications,
+          trust_fixed_deposits: fixedDeposits,
+          trust_budget_plan: budgetPlan,
+          trust_certificates_80g: certificates80g,
+          trust_notices: notices,
           trust_audit_logs: auditLogs,
           trust_licenses: licenses,
           trust_settings: trustSettings,
+          trust_users: appUsers,
+          donors,
+          receipts,
+          vouchers,
+          banks,
+          members,
+          assets,
+          documents,
+          tharavs,
+          reconciliationList,
+          inventoryItems,
+          purchaseBills,
+          salesBills,
+          sharePurchases,
+          loanApplications,
+          fixedDeposits,
+          budgetPlan,
+          certificates80g,
+          notices,
+          auditLogs,
+          licenses,
+          trustSettings,
+          appUsers,
           last_saved_at: new Date().toISOString()
         };
         const writable = await handle.createWritable();
@@ -1000,9 +852,42 @@ export default function App() {
             trust_assets: assets,
             trust_documents: documents,
             trust_tharavs: tharavs,
+            trust_reconciliation: reconciliationList,
+            trust_inventory_items: inventoryItems,
+            trust_purchase_bills: purchaseBills,
+            trust_sales_bills: salesBills,
+            trust_share_purchases: sharePurchases,
+            trust_loan_applications: loanApplications,
+            trust_fixed_deposits: fixedDeposits,
+            trust_budget_plan: budgetPlan,
+            trust_certificates_80g: certificates80g,
+            trust_notices: notices,
             trust_audit_logs: auditLogs,
             trust_licenses: licenses,
             trust_settings: trustSettings,
+            trust_users: appUsers,
+            donors,
+            receipts,
+            vouchers,
+            banks,
+            members,
+            assets,
+            documents,
+            tharavs,
+            reconciliationList,
+            inventoryItems,
+            purchaseBills,
+            salesBills,
+            sharePurchases,
+            loanApplications,
+            fixedDeposits,
+            budgetPlan,
+            certificates80g,
+            notices,
+            auditLogs,
+            licenses,
+            trustSettings,
+            appUsers,
             last_saved_at: new Date().toISOString()
           };
           const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -1020,6 +905,161 @@ export default function App() {
     }
   };
 
+  const handleRestoreFullBackup = async (parsed: any, sourceName: string = 'બેકઅપ ફાઈલ'): Promise<{ success: boolean; countSummary: string }> => {
+    if (!parsed || typeof parsed !== 'object') {
+      alert("અમાન્ય બેકઅપ ફાઈલ: ફાઈલમાં કોઈ ડેટા મળ્યો નથી.");
+      return { success: false, countSummary: '' };
+    }
+
+    // 1. Intelligent extraction of all tables
+    const newDonors = Array.isArray(parsed.trust_donors) ? parsed.trust_donors : (Array.isArray(parsed.donors) ? parsed.donors : null);
+    const newReceipts = Array.isArray(parsed.trust_receipts) ? parsed.trust_receipts : (Array.isArray(parsed.receipts) ? parsed.receipts : null);
+    const newVouchers = Array.isArray(parsed.trust_vouchers) ? parsed.trust_vouchers : (Array.isArray(parsed.vouchers) ? parsed.vouchers : null);
+    const newBanks = Array.isArray(parsed.trust_banks) ? parsed.trust_banks : (Array.isArray(parsed.banks) ? parsed.banks : null);
+    const newMembers = Array.isArray(parsed.trust_members) ? parsed.trust_members : (Array.isArray(parsed.members) ? parsed.members : null);
+    const newAssets = Array.isArray(parsed.trust_assets) ? parsed.trust_assets : (Array.isArray(parsed.assets) ? parsed.assets : null);
+    const newDocs = Array.isArray(parsed.trust_documents) ? parsed.trust_documents : (Array.isArray(parsed.documents) ? parsed.documents : null);
+    const newTharavs = Array.isArray(parsed.trust_tharavs) ? parsed.trust_tharavs : (Array.isArray(parsed.tharavs) ? parsed.tharavs : null);
+    const newRecon = Array.isArray(parsed.trust_reconciliation) ? parsed.trust_reconciliation : (Array.isArray(parsed.reconciliationList) ? parsed.reconciliationList : null);
+    const newInventory = Array.isArray(parsed.trust_inventory_items) ? parsed.trust_inventory_items : (Array.isArray(parsed.inventoryItems) ? parsed.inventoryItems : null);
+    const newPurchases = Array.isArray(parsed.trust_purchase_bills) ? parsed.trust_purchase_bills : (Array.isArray(parsed.purchaseBills) ? parsed.purchaseBills : null);
+    const newSales = Array.isArray(parsed.trust_sales_bills) ? parsed.trust_sales_bills : (Array.isArray(parsed.salesBills) ? parsed.salesBills : null);
+    const newShares = Array.isArray(parsed.trust_share_purchases) ? parsed.trust_share_purchases : (Array.isArray(parsed.sharePurchases) ? parsed.sharePurchases : null);
+    const newLoans = Array.isArray(parsed.trust_loan_applications) ? parsed.trust_loan_applications : (Array.isArray(parsed.loanApplications) ? parsed.loanApplications : null);
+    const newFDs = Array.isArray(parsed.trust_fixed_deposits) ? parsed.trust_fixed_deposits : (Array.isArray(parsed.fixedDeposits) ? parsed.fixedDeposits : null);
+    const newBudget = parsed.trust_budget_plan || parsed.budgetPlan || null;
+    const new80g = Array.isArray(parsed.trust_certificates_80g) ? parsed.trust_certificates_80g : (Array.isArray(parsed.certificates80g) ? parsed.certificates80g : null);
+    const newNotices = Array.isArray(parsed.trust_notices) ? parsed.trust_notices : (Array.isArray(parsed.notices) ? parsed.notices : null);
+    const newLogs = Array.isArray(parsed.trust_audit_logs) ? parsed.trust_audit_logs : (Array.isArray(parsed.auditLogs) ? parsed.auditLogs : null);
+    const newSettings = parsed.trust_settings || parsed.trustSettings || null;
+    const newLicenses = Array.isArray(parsed.trust_licenses) ? parsed.trust_licenses : (Array.isArray(parsed.licenses) ? parsed.licenses : null);
+    const newUsers = Array.isArray(parsed.trust_users) ? parsed.trust_users : (Array.isArray(parsed.appUsers) ? parsed.appUsers : (Array.isArray(parsed.users) ? parsed.users : null));
+
+    // Validate if any recognizable dataset is present
+    const hasData = (newReceipts && newReceipts.length > 0) ||
+      (newVouchers && newVouchers.length > 0) ||
+      (newDonors && newDonors.length > 0) ||
+      (newBanks && newBanks.length > 0) ||
+      (newMembers && newMembers.length > 0) ||
+      (newAssets && newAssets.length > 0) ||
+      (newFDs && newFDs.length > 0) ||
+      (newInventory && newInventory.length > 0) ||
+      (newSettings && (newSettings.trustNameGuj || newSettings.regNoGuj || newSettings.phone));
+
+    if (!hasData && !parsed.trust_receipts && !parsed.receipts && !parsed.trust_vouchers && !parsed.vouchers) {
+      alert("અમાન્ય બેકઅપ ફાઇલ: આ ફાઇલમાં ટ્રસ્ટનો માન્ય હિસાબી ડેટા મળ્યો નથી.");
+      return { success: false, countSummary: '' };
+    }
+
+    // 2. Set React states
+    if (newDonors) setDonors(newDonors);
+    if (newReceipts) setReceipts(newReceipts);
+    if (newVouchers) setVouchers(newVouchers);
+    if (newBanks) setBanks(newBanks);
+    if (newMembers) setMembers(newMembers);
+    if (newAssets) setAssets(newAssets);
+    if (newDocs) setDocuments(newDocs);
+    if (newTharavs) setTharavs(newTharavs);
+    if (newRecon) setReconciliationList(newRecon);
+    if (newInventory) setInventoryItems(newInventory);
+    if (newPurchases) setPurchaseBills(newPurchases);
+    if (newSales) setSalesBills(newSales);
+    if (newShares) setSharePurchases(newShares);
+    if (newLoans) setLoanApplications(newLoans);
+    if (newFDs) setFixedDeposits(newFDs);
+    if (newBudget) setBudgetPlan(newBudget);
+    if (new80g) setCertificates80g(new80g);
+    if (newNotices) setNotices(newNotices);
+    if (newLogs) setAuditLogs(newLogs);
+    if (newSettings) setTrustSettings(newSettings);
+    if (newLicenses && newLicenses.length > 0) setLicenses(newLicenses);
+    if (newUsers && newUsers.length > 0) setAppUsers(newUsers);
+
+    // 3. Write all tables to localStorage (both generic unscoped keys and scoped keys)
+    const tablesToSync: { key: string; val: any }[] = [
+      { key: 'trust_donors', val: newDonors ?? [] },
+      { key: 'trust_receipts', val: newReceipts ?? [] },
+      { key: 'trust_vouchers', val: newVouchers ?? [] },
+      { key: 'trust_banks', val: newBanks ?? [] },
+      { key: 'trust_members', val: newMembers ?? [] },
+      { key: 'trust_assets', val: newAssets ?? [] },
+      { key: 'trust_documents', val: newDocs ?? [] },
+      { key: 'trust_tharavs', val: newTharavs ?? [] },
+      { key: 'trust_reconciliation', val: newRecon ?? [] },
+      { key: 'trust_inventory_items', val: newInventory ?? [] },
+      { key: 'trust_purchase_bills', val: newPurchases ?? [] },
+      { key: 'trust_sales_bills', val: newSales ?? [] },
+      { key: 'trust_share_purchases', val: newShares ?? [] },
+      { key: 'trust_loan_applications', val: newLoans ?? [] },
+      { key: 'trust_fixed_deposits', val: newFDs ?? [] },
+      { key: 'trust_budget_plan', val: newBudget ?? DEFAULT_BUDGET_PLAN },
+      { key: 'trust_certificates_80g', val: new80g ?? [] },
+      { key: 'trust_notices', val: newNotices ?? [] },
+      { key: 'trust_audit_logs', val: newLogs ?? [] },
+    ];
+
+    tablesToSync.forEach(({ key, val }) => {
+      localStorage.setItem(key, JSON.stringify(val));
+      localStorage.setItem(getScopedKey(key), JSON.stringify(val));
+    });
+
+    if (newSettings) {
+      localStorage.setItem('trust_settings', JSON.stringify(newSettings));
+      localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(newSettings));
+      localStorage.setItem('active_trust_settings', JSON.stringify(newSettings));
+    }
+    if (newLicenses && newLicenses.length > 0) {
+      localStorage.setItem('trust_licenses', JSON.stringify(newLicenses));
+    }
+    if (newUsers && newUsers.length > 0) {
+      localStorage.setItem('trust_users', JSON.stringify(newUsers));
+    }
+
+    // 4. Update linked PC file if active
+    if (fileHandle && filePermissionGranted) {
+      try {
+        const payloadToPC = {
+          trust_donors: newDonors ?? [],
+          trust_receipts: newReceipts ?? [],
+          trust_vouchers: newVouchers ?? [],
+          trust_banks: newBanks ?? [],
+          trust_members: newMembers ?? [],
+          trust_assets: newAssets ?? [],
+          trust_documents: newDocs ?? [],
+          trust_tharavs: newTharavs ?? [],
+          trust_audit_logs: newLogs ?? [],
+          trust_licenses: newLicenses ?? licenses,
+          trust_settings: newSettings || trustSettings,
+          trust_reconciliation: newRecon ?? [],
+          trust_inventory_items: newInventory ?? [],
+          trust_purchase_bills: newPurchases ?? [],
+          trust_sales_bills: newSales ?? [],
+          trust_fixed_deposits: newFDs ?? [],
+          trust_budget_plan: newBudget ?? DEFAULT_BUDGET_PLAN,
+          trust_certificates_80g: new80g ?? [],
+          trust_notices: newNotices ?? [],
+          last_saved_at: new Date().toISOString()
+        };
+        const writable = await fileHandle.createWritable();
+        await writable.write(JSON.stringify(payloadToPC, null, 2));
+        await writable.close();
+      } catch (pcErr) {
+        console.warn("PC file sync on restore warning:", pcErr);
+      }
+    }
+
+    // 6. Add Audit Log
+    addAuditLog(
+      'સંપૂર્ણ બેકઅપ ડેટા રીસ્ટોર કરેલ',
+      'બેકઅપ વ્યવસ્થાપન',
+      `${sourceName} માંથી તમામ આવક, ખર્ચ, બેંક અને ટ્રસ્ટ રેકોર્ડ્સ સફળતાપૂર્વક પુનઃસ્થાપિત કરવામાં આવ્યા.`
+    );
+
+    const countsText = `• આવક પાવતીઓ: ${newReceipts?.length || 0}\n• ખર્ચ વાઉચરો: ${newVouchers?.length || 0}\n• દાતાઓ: ${newDonors?.length || 0}\n• બેંક ખાતાઓ: ${newBanks?.length || 0}\n• સભાસદો: ${newMembers?.length || 0}\n• મિલકતો: ${newAssets?.length || 0}\n• મુદતી થાપણ (FD): ${newFDs?.length || 0}`;
+
+    return { success: true, countSummary: countsText };
+  };
+
   const handleConnectExistingPCFile = async () => {
     try {
       if (window.self !== window.top || !('showOpenFilePicker' in window)) {
@@ -1030,26 +1070,16 @@ export default function App() {
         input.onchange = async (e: any) => {
           const file = e.target.files?.[0];
           if (file) {
-            const text = await file.text();
-            const parsed = JSON.parse(text);
-            if (parsed && (parsed.trust_receipts || parsed.trust_vouchers || parsed.trust_settings)) {
-              if (parsed.trust_donors) { setDonors(parsed.trust_donors); syncStorage('trust_donors', parsed.trust_donors); }
-              if (parsed.trust_receipts) { setReceipts(parsed.trust_receipts); syncStorage('trust_receipts', parsed.trust_receipts); }
-              if (parsed.trust_vouchers) { setVouchers(parsed.trust_vouchers); syncStorage('trust_vouchers', parsed.trust_vouchers); }
-              if (parsed.trust_banks) { setBanks(parsed.trust_banks); syncStorage('trust_banks', parsed.trust_banks); }
-              if (parsed.trust_members) { setMembers(parsed.trust_members); syncStorage('trust_members', parsed.trust_members); }
-              if (parsed.trust_assets) { setAssets(parsed.trust_assets); syncStorage('trust_assets', parsed.trust_assets); }
-              if (parsed.trust_documents) { setDocuments(parsed.trust_documents); syncStorage('trust_documents', parsed.trust_documents); }
-              if (parsed.trust_tharavs) { setTharavs(parsed.trust_tharavs); syncStorage('trust_tharavs', parsed.trust_tharavs); }
-              if (parsed.trust_audit_logs) { setAuditLogs(parsed.trust_audit_logs); syncStorage('trust_audit_logs', parsed.trust_audit_logs); }
-              if (parsed.trust_licenses) { setLicenses(parsed.trust_licenses); syncStorage('trust_licenses', parsed.trust_licenses); }
-              if (parsed.trust_settings) { setTrustSettings(parsed.trust_settings); syncStorage('trust_settings', parsed.trust_settings); }
-              if (parsed.trust_reconciliation) { setReconciliationList(parsed.trust_reconciliation); syncStorage('trust_reconciliation', parsed.trust_reconciliation); }
-
-              setFileName(file.name);
-              alert(`સફળતાપૂર્વક ઈમ્પોર્ટ! "${file.name}" ફાઇલમાંથી તમામ જુનો હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે.`);
-            } else {
-              alert("આ એક અમાન્ય હિસાબી ફાઇલ છે. કૃપા કરીને સાચી બેકઅપ ફાઈલ સિલેક્ટ કરો.");
+            try {
+              const text = await file.text();
+              const parsed = JSON.parse(text);
+              const result = await handleRestoreFullBackup(parsed, file.name);
+              if (result.success) {
+                setFileName(file.name);
+                alert(`સફળતાપૂર્વક રીસ્ટોર!\n"${file.name}" ફાઇલમાંથી તમામ હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે.\n\nવિગતો:\n${result.countSummary}`);
+              }
+            } catch (err: any) {
+              alert("ફાઇલ વાંચવામાં સમસ્યા: " + err.message);
             }
           }
         };
@@ -1071,22 +1101,8 @@ export default function App() {
         const text = await file.text();
         const parsed = JSON.parse(text);
 
-        // Validation: verify if it contains database fields
-        if (parsed && (parsed.trust_receipts || parsed.trust_vouchers || parsed.trust_settings)) {
-          // Import data
-          if (parsed.trust_donors) { setDonors(parsed.trust_donors); syncStorage('trust_donors', parsed.trust_donors); }
-          if (parsed.trust_receipts) { setReceipts(parsed.trust_receipts); syncStorage('trust_receipts', parsed.trust_receipts); }
-          if (parsed.trust_vouchers) { setVouchers(parsed.trust_vouchers); syncStorage('trust_vouchers', parsed.trust_vouchers); }
-          if (parsed.trust_banks) { setBanks(parsed.trust_banks); syncStorage('trust_banks', parsed.trust_banks); }
-          if (parsed.trust_members) { setMembers(parsed.trust_members); syncStorage('trust_members', parsed.trust_members); }
-          if (parsed.trust_assets) { setAssets(parsed.trust_assets); syncStorage('trust_assets', parsed.trust_assets); }
-          if (parsed.trust_documents) { setDocuments(parsed.trust_documents); syncStorage('trust_documents', parsed.trust_documents); }
-          if (parsed.trust_tharavs) { setTharavs(parsed.trust_tharavs); syncStorage('trust_tharavs', parsed.trust_tharavs); }
-          if (parsed.trust_audit_logs) { setAuditLogs(parsed.trust_audit_logs); syncStorage('trust_audit_logs', parsed.trust_audit_logs); }
-          if (parsed.trust_licenses) { setLicenses(parsed.trust_licenses); syncStorage('trust_licenses', parsed.trust_licenses); }
-          if (parsed.trust_settings) { setTrustSettings(parsed.trust_settings); syncStorage('trust_settings', parsed.trust_settings); }
-          if (parsed.trust_reconciliation) { setReconciliationList(parsed.trust_reconciliation); syncStorage('trust_reconciliation', parsed.trust_reconciliation); }
-
+        const result = await handleRestoreFullBackup(parsed, handle.name);
+        if (result.success) {
           await saveFileHandleToIndexedDB(handle);
           setFileHandle(handle);
           setFileName(handle.name);
@@ -1097,9 +1113,7 @@ export default function App() {
             'લોકલ બેકઅપ (PC Sync)',
             `હાલની ફાઇલ: ${handle.name} માંથી સંપૂર્ણ ડેટા સફળતાપૂર્વક લોડ કરીને લિંક કર્યો.`
           );
-          alert(`સફળ જોડાણ! "${handle.name}" ફાઇલમાંથી તમામ જુનો હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે અને ઓટો-સેવ સક્રિય છે.`);
-        } else {
-          alert("આ એક અમાન્ય હિસાબી ફાઇલ છે. કૃપા કરીને સાચી બેકઅપ ફાઈલ સિલેક્ટ કરો.");
+          alert(`સફળ જોડાણ અને રીસ્ટોર!\n"${handle.name}" ફાઇલમાંથી તમામ હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે અને ઓટો-સેવ સક્રિય છે.\n\nવિગતો:\n${result.countSummary}`);
         }
       }
     } catch (err: any) {
@@ -1112,26 +1126,16 @@ export default function App() {
           input.onchange = async (e: any) => {
             const file = e.target.files?.[0];
             if (file) {
-              const text = await file.text();
-              const parsed = JSON.parse(text);
-              if (parsed && (parsed.trust_receipts || parsed.trust_vouchers || parsed.trust_settings)) {
-                if (parsed.trust_donors) { setDonors(parsed.trust_donors); syncStorage('trust_donors', parsed.trust_donors); }
-                if (parsed.trust_receipts) { setReceipts(parsed.trust_receipts); syncStorage('trust_receipts', parsed.trust_receipts); }
-                if (parsed.trust_vouchers) { setVouchers(parsed.trust_vouchers); syncStorage('trust_vouchers', parsed.trust_vouchers); }
-                if (parsed.trust_banks) { setBanks(parsed.trust_banks); syncStorage('trust_banks', parsed.trust_banks); }
-                if (parsed.trust_members) { setMembers(parsed.trust_members); syncStorage('trust_members', parsed.trust_members); }
-                if (parsed.trust_assets) { setAssets(parsed.trust_assets); syncStorage('trust_assets', parsed.trust_assets); }
-                if (parsed.trust_documents) { setDocuments(parsed.trust_documents); syncStorage('trust_documents', parsed.trust_documents); }
-                if (parsed.trust_tharavs) { setTharavs(parsed.trust_tharavs); syncStorage('trust_tharavs', parsed.trust_tharavs); }
-                if (parsed.trust_audit_logs) { setAuditLogs(parsed.trust_audit_logs); syncStorage('trust_audit_logs', parsed.trust_audit_logs); }
-                if (parsed.trust_licenses) { setLicenses(parsed.trust_licenses); syncStorage('trust_licenses', parsed.trust_licenses); }
-                if (parsed.trust_settings) { setTrustSettings(parsed.trust_settings); syncStorage('trust_settings', parsed.trust_settings); }
-                if (parsed.trust_reconciliation) { setReconciliationList(parsed.trust_reconciliation); syncStorage('trust_reconciliation', parsed.trust_reconciliation); }
-
-                setFileName(file.name);
-                alert(`સફળતાપૂર્વક ઈમ્પોર્ટ! "${file.name}" ફાઇલમાંથી તમામ જુનો હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે.`);
-              } else {
-                alert("આ એક અમાન્ય હિસાબી ફાઇલ છે. કૃપા કરીને સાચી બેકઅપ ફાઈલ સિલેક્ટ કરો.");
+              try {
+                const text = await file.text();
+                const parsed = JSON.parse(text);
+                const result = await handleRestoreFullBackup(parsed, file.name);
+                if (result.success) {
+                  setFileName(file.name);
+                  alert(`સફળતાપૂર્વક રીસ્ટોર!\n"${file.name}" ફાઇલમાંથી તમામ હિસાબી ડેટા સોફ્ટવેરમાં લોડ થઈ ગયો છે.\n\nવિગતો:\n${result.countSummary}`);
+                }
+              } catch (err: any) {
+                alert("ફાઇલ વાંચવામાં સમસ્યા: " + err.message);
               }
             }
           };
@@ -1154,18 +1158,7 @@ export default function App() {
         const text = await file.text();
         const parsed = JSON.parse(text);
         if (parsed) {
-          if (parsed.trust_donors) { setDonors(parsed.trust_donors); syncStorage('trust_donors', parsed.trust_donors); }
-          if (parsed.trust_receipts) { setReceipts(parsed.trust_receipts); syncStorage('trust_receipts', parsed.trust_receipts); }
-          if (parsed.trust_vouchers) { setVouchers(parsed.trust_vouchers); syncStorage('trust_vouchers', parsed.trust_vouchers); }
-          if (parsed.trust_banks) { setBanks(parsed.trust_banks); syncStorage('trust_banks', parsed.trust_banks); }
-          if (parsed.trust_members) { setMembers(parsed.trust_members); syncStorage('trust_members', parsed.trust_members); }
-          if (parsed.trust_assets) { setAssets(parsed.trust_assets); syncStorage('trust_assets', parsed.trust_assets); }
-          if (parsed.trust_documents) { setDocuments(parsed.trust_documents); syncStorage('trust_documents', parsed.trust_documents); }
-          if (parsed.trust_tharavs) { setTharavs(parsed.trust_tharavs); syncStorage('trust_tharavs', parsed.trust_tharavs); }
-          if (parsed.trust_audit_logs) { setAuditLogs(parsed.trust_audit_logs); syncStorage('trust_audit_logs', parsed.trust_audit_logs); }
-          if (parsed.trust_licenses) { setLicenses(parsed.trust_licenses); syncStorage('trust_licenses', parsed.trust_licenses); }
-          if (parsed.trust_settings) { setTrustSettings(parsed.trust_settings); syncStorage('trust_settings', parsed.trust_settings); }
-          if (parsed.trust_reconciliation) { setReconciliationList(parsed.trust_reconciliation); syncStorage('trust_reconciliation', parsed.trust_reconciliation); }
+          await handleRestoreFullBackup(parsed, fileHandle.name);
         }
         addAuditLog(
           'પીસી ઓટો-સેવ ફાઇલ અનલોક કરેલ',
@@ -2026,7 +2019,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [donors, receipts, vouchers, banks, members, assets, documents, tharavs, auditLogs, licenses, trustSettings, reconciliationList, inventoryItems, purchaseBills, salesBills, fileHandle, filePermissionGranted]);
 
-  // Real-time Cloud synchronization for master licenses and users across all devices (Mobile / PC)
+  // Real-time Cloud synchronization for master licenses and users across all devices (Mobile / Web)
   useEffect(() => {
     if (isElectronOfflineApp() || appMode === 'offline' || !navigator.onLine) return;
 
@@ -2042,7 +2035,7 @@ export default function App() {
           localStorage.setItem('trust_users', JSON.stringify(res.users));
         }
       }
-    }).catch(e => console.warn("Initial system master fetch:", e));
+    }).catch(e => console.warn("Initial system master fetch notice:", e));
 
     // Subscribe to live changes
     const unsubMaster = subscribeToSystemMasterFirebase((data) => {
@@ -2060,6 +2053,151 @@ export default function App() {
       unsubMaster();
     };
   }, [appMode, isOnline]);
+
+  const fetchFromFirebaseCloud = async (silent: boolean = false, targetTrustOverride?: string) => {
+    if (isElectronOfflineApp() || appMode === 'offline' || !navigator.onLine) {
+      if (!silent) alert('તમે પીસી ઑફલાઇન મોડમાં છો. ક્લાઉડ સિંકની જરૂર નથી.');
+      return;
+    }
+    const targetTrust = targetTrustOverride || currentSessionUser?.trustNameGuj || trustSettings.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
+    setIsCloudSyncing(true);
+    try {
+      const cloudData = await loadFullTrustFromFirebase(targetTrust);
+      if (cloudData) {
+        const dnr = cloudData.trust_donors ?? cloudData.donors;
+        if (Array.isArray(dnr)) {
+          setDonors(dnr);
+          localStorage.setItem(getScopedKey('trust_donors'), JSON.stringify(dnr));
+        }
+        const rcp = cloudData.trust_receipts ?? cloudData.receipts;
+        if (Array.isArray(rcp)) {
+          setReceipts(rcp);
+          localStorage.setItem(getScopedKey('trust_receipts'), JSON.stringify(rcp));
+        }
+        const vch = cloudData.trust_vouchers ?? cloudData.vouchers;
+        if (Array.isArray(vch)) {
+          setVouchers(vch);
+          localStorage.setItem(getScopedKey('trust_vouchers'), JSON.stringify(vch));
+        }
+        const bnk = cloudData.trust_banks ?? cloudData.banks;
+        if (Array.isArray(bnk)) {
+          setBanks(bnk);
+          localStorage.setItem(getScopedKey('trust_banks'), JSON.stringify(bnk));
+        }
+        const mbr = cloudData.trust_members ?? cloudData.members;
+        if (Array.isArray(mbr)) {
+          setMembers(mbr);
+          localStorage.setItem(getScopedKey('trust_members'), JSON.stringify(mbr));
+        }
+        const ast = cloudData.trust_assets ?? cloudData.assets;
+        if (Array.isArray(ast)) {
+          setAssets(ast);
+          localStorage.setItem(getScopedKey('trust_assets'), JSON.stringify(ast));
+        }
+        const docList = cloudData.trust_documents ?? cloudData.documents;
+        if (Array.isArray(docList)) {
+          setDocuments(docList);
+          localStorage.setItem(getScopedKey('trust_documents'), JSON.stringify(docList));
+        }
+        const thr = cloudData.trust_tharavs ?? cloudData.tharavs;
+        if (Array.isArray(thr)) {
+          setTharavs(thr);
+          localStorage.setItem(getScopedKey('trust_tharavs'), JSON.stringify(thr));
+        }
+        const setts = cloudData.trust_settings ?? cloudData.trustSettings;
+        if (setts) { 
+          setTrustSettings(setts); 
+          localStorage.setItem(getScopedKey('trust_settings'), JSON.stringify(setts)); 
+        }
+        const rcn = cloudData.trust_reconciliation ?? cloudData.reconciliationList;
+        if (Array.isArray(rcn)) {
+          setReconciliationList(rcn);
+          localStorage.setItem(getScopedKey('trust_reconciliation'), JSON.stringify(rcn));
+        }
+        const inv = cloudData.trust_inventory_items ?? cloudData.inventoryItems;
+        if (Array.isArray(inv)) {
+          setInventoryItems(inv);
+          localStorage.setItem(getScopedKey('trust_inventory_items'), JSON.stringify(inv));
+        }
+        const pb = cloudData.trust_purchase_bills ?? cloudData.purchaseBills;
+        if (Array.isArray(pb)) {
+          setPurchaseBills(pb);
+          localStorage.setItem(getScopedKey('trust_purchase_bills'), JSON.stringify(pb));
+        }
+        const sb = cloudData.trust_sales_bills ?? cloudData.salesBills;
+        if (Array.isArray(sb)) {
+          setSalesBills(sb);
+          localStorage.setItem(getScopedKey('trust_sales_bills'), JSON.stringify(sb));
+        }
+        const sp = cloudData.trust_share_purchases ?? cloudData.sharePurchases;
+        if (Array.isArray(sp)) {
+          setSharePurchases(sp);
+          localStorage.setItem(getScopedKey('trust_share_purchases'), JSON.stringify(sp));
+        }
+        const la = cloudData.trust_loan_applications ?? cloudData.loanApplications;
+        if (Array.isArray(la)) {
+          setLoanApplications(la);
+          localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(la));
+        }
+      }
+      const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastCloudSyncTime(nowTime);
+      if (!silent) {
+        alert('🎉 Google Firebase ક્લાઉડમાંથી ડેટા સફળતાપૂર્વક અપડેટ થયો!');
+      }
+    } catch (err: any) {
+      console.warn("fetchFromFirebaseCloud error:", err);
+      if (!silent) alert('ક્લાઉડ ફેચ ક્ષતિ: ' + (err?.message || 'ડેટા લોડ થઈ શક્યો નથી.'));
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const syncToFirebaseAndCloud = async (silent: boolean = false) => {
+    if (isElectronOfflineApp() || appMode === 'offline' || !navigator.onLine) {
+      if (!silent) alert('તમે પીસી ઑફલાઇન મોડમાં છો. ક્લાઉડ સિંકની જરૂર નથી.');
+      return;
+    }
+    const targetTrust = currentSessionUser?.trustNameGuj || trustSettings.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
+    setIsCloudSyncing(true);
+    try {
+      const fullPayload = {
+        trust_donors: donors,
+        trust_receipts: receipts,
+        trust_vouchers: vouchers,
+        trust_banks: banks,
+        trust_members: members,
+        trust_assets: assets,
+        trust_documents: documents,
+        trust_tharavs: tharavs,
+        trust_reconciliation: reconciliationList,
+        trust_inventory_items: inventoryItems,
+        trust_purchase_bills: purchaseBills,
+        trust_sales_bills: salesBills,
+        trust_share_purchases: sharePurchases,
+        trust_loan_applications: loanApplications,
+        trust_fixed_deposits: fixedDeposits,
+        trust_budget_plan: budgetPlan,
+        trust_certificates_80g: certificates80g,
+        trust_notices: notices,
+        trust_audit_logs: auditLogs,
+        trust_settings: trustSettings,
+        last_saved_at: new Date().toISOString()
+      };
+      await saveFullTrustToFirebase(targetTrust, fullPayload);
+      await saveSystemMasterToFirebase(licenses, appUsers);
+      const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastCloudSyncTime(nowTime);
+      if (!silent) {
+        alert('🎉 સમગ્ર ટ્રસ્ટનો હિસાબ અને સેટિંગ્સ Google Firebase Firestore ક્લાઉડમાં સફળતાપૂર્વક સિંક થયા!');
+      }
+    } catch (err: any) {
+      console.warn("syncToFirebaseAndCloud error:", err);
+      if (!silent) alert('ક્લાઉડ સિંક ક્ષતિ: ' + (err?.message || 'સેવ થઈ શક્યો નથી.'));
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
 
   // Real-time Cloud synchronization for current logged in Trust's data
   useEffect(() => {
@@ -2148,7 +2286,7 @@ export default function App() {
         localStorage.setItem(getScopedKey('trust_loan_applications'), JSON.stringify(la));
       }
       const nowTime = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLastFirebaseSyncTime(nowTime);
+      setLastCloudSyncTime(nowTime);
     });
 
     return () => unsubscribe();
@@ -2157,7 +2295,7 @@ export default function App() {
   // Sync state helpers
   const syncStorage = (key: string, data: any) => {
     localStorage.setItem(getScopedKey(key), JSON.stringify(data));
-    // If running in Online Web mode, sync to Google Firebase Firestore
+    // If running in Online Web mode, also sync to Google Firebase Firestore
     if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
       const targetTrust = currentSessionUser?.trustNameGuj || trustSettings?.trustNameGuj || 'મુખ્ય ટ્રસ્ટ';
       if (key === 'trust_licenses') {
@@ -2221,29 +2359,9 @@ export default function App() {
         return;
       }
 
-      // 1. Refresh from Google Firebase Firestore to ensure all accounts created on PC or other devices are present
+      // 1. Get current licenses and users
       let currentLicList = licenses;
       let currentUserList = appUsers;
-
-      if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
-        try {
-          const remoteMaster = await loadSystemMasterFromFirebase();
-          if (remoteMaster) {
-            if (remoteMaster.licenses && remoteMaster.licenses.length > 0) {
-              currentLicList = remoteMaster.licenses;
-              setLicenses(remoteMaster.licenses);
-              localStorage.setItem('trust_licenses', JSON.stringify(remoteMaster.licenses));
-            }
-            if (remoteMaster.users && remoteMaster.users.length > 0) {
-              currentUserList = remoteMaster.users;
-              setAppUsers(remoteMaster.users);
-              localStorage.setItem('trust_users', JSON.stringify(remoteMaster.users));
-            }
-          }
-        } catch (fbErr) {
-          console.warn("Could not query Firebase for login verification, using local state:", fbErr);
-        }
-      }
 
       const normalizeStr = (s?: string) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -2307,11 +2425,6 @@ export default function App() {
           ...prev,
           trustNameGuj: userTrustName
         }));
-      }
-
-      // Fetch cloud data for this trust immediately
-      if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
-        fetchFromFirebaseCloud(true, userTrustName || undefined);
       }
 
       // Log audit
@@ -3290,6 +3403,38 @@ export default function App() {
       return false;
     }
 
+    // 0. Save an emergency pre-reset snapshot so user never loses data accidentally
+    try {
+      const emergencySnapshot = {
+        trust_donors: donors,
+        trust_receipts: receipts,
+        trust_vouchers: vouchers,
+        trust_banks: banks,
+        trust_members: members,
+        trust_assets: assets,
+        trust_documents: documents,
+        trust_tharavs: tharavs,
+        trust_reconciliation: reconciliationList,
+        trust_inventory_items: inventoryItems,
+        trust_purchase_bills: purchaseBills,
+        trust_sales_bills: salesBills,
+        trust_share_purchases: sharePurchases,
+        trust_loan_applications: loanApplications,
+        trust_fixed_deposits: fixedDeposits,
+        trust_budget_plan: budgetPlan,
+        trust_certificates_80g: certificates80g,
+        trust_notices: notices,
+        trust_audit_logs: auditLogs,
+        trust_licenses: licenses,
+        trust_settings: trustSettings,
+        trust_users: appUsers,
+        reset_timestamp: new Date().toISOString()
+      };
+      localStorage.setItem('trust_emergency_pre_reset_snapshot', JSON.stringify(emergencySnapshot));
+    } catch (e) {
+      console.warn("Could not write emergency snapshot:", e);
+    }
+
     // 1. Perform complete factory master reset across ALL React state variables
     setReceipts([]);
     setVouchers([]);
@@ -3419,14 +3564,6 @@ export default function App() {
       trust_name: targetTrust,
       is_reset: true
     };
-
-    if (!isElectronOfflineApp() && navigator.onLine && appMode !== 'offline') {
-      resetTrustInFirebase(targetTrust, blankPayload).then(() => {
-        console.log(`[Firebase Cloud] Trust data for [${targetTrust}] completely wiped and reset.`);
-      }).catch(err => {
-        console.error("Firebase wipe error:", err);
-      });
-    }
 
     // 4. Also wipe linked PC SQLite / JSON file if connected
     if (fileHandle && filePermissionGranted) {
@@ -3811,7 +3948,6 @@ export default function App() {
         section80GNo: '',
         openingCashBalance: 0
       };
-      saveTrustDatasetToFirebase(newLic.trustNameGuj, 'trust_settings', newTrustSettings);
 
       // Auto set form fields for immediate login testing
       setLoginSelectedTrust(newLic.trustNameGuj);
@@ -3874,9 +4010,6 @@ export default function App() {
       );
       setAppUsers(updatedUsers);
       localStorage.setItem('trust_users', JSON.stringify(updatedUsers));
-
-      // Delete entirely from Firebase Cloud
-      deleteTrustFromFirebase(targetTrustName).catch(e => console.warn(e));
 
       // 3. Purge all records associated with targetTrustName or current active trust
       const isCurrentActiveTrust =
@@ -3947,9 +4080,6 @@ export default function App() {
         });
       }
     }
-
-    // Direct save system master (both licenses and users) to Firebase
-    saveSystemMasterToFirebase(updatedLicenses, updatedUsers);
 
     if (updatedLicenses.length === 0) {
       localStorage.removeItem('trust_activated_name');
@@ -4723,39 +4853,37 @@ export default function App() {
               <span>{formatLiveDateTime(liveDateTime)}</span>
             </span>
 
-            {/* Google Firebase Cloud / PC Offline Status Badge */}
-            {isElectronOfflineApp() ? (
+            {/* Online Firebase Cloud or PC Offline / Local Storage Status Badge */}
+            {!isElectronOfflineApp() && appMode !== 'offline' ? (
               <div 
-                className="p-2 px-3 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-xl font-bold flex items-center gap-1.5 shrink-0 text-xs border border-blue-200 dark:border-blue-800"
-                title="તમે પીસી ઇન્સ્ટોલ ઑફલાઇન ડેસ્કટોપ મોડમાં છો. તમામ ડેટા તમારા કમ્પ્યુટર પર લોકલ સાચવવામાં આવે છે."
+                onClick={() => syncToFirebaseAndCloud(false)}
+                className="p-2 px-3 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/40 rounded-xl font-bold flex items-center gap-2 shrink-0 text-xs border border-sky-200 dark:border-sky-800/60 cursor-pointer shadow-sm transition-all"
+                title="Google Firebase Firestore Cloud Database સાથે કનેક્ટેડ છે. તાત્કાલિક સિંક કરવા ક્લિક કરો."
               >
-                <HardDrive className="w-4 h-4 text-blue-600" />
+                <Cloud className={`w-4 h-4 text-sky-600 dark:text-sky-400 ${isCloudSyncing ? 'animate-bounce' : ''}`} />
                 <div className="text-left leading-none">
-                  <div className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">PC ઑફલાઇન એપ</div>
-                  <div className="text-[10px] font-black">💾 લોકલ પીસી ડેટા</div>
+                  <div className="text-[9px] font-bold text-sky-500 dark:text-sky-400 uppercase tracking-wider">
+                    {isCloudSyncing ? 'ક્લાઉડ સિંક...' : 'Firebase ક્લાઉડ'}
+                  </div>
+                  <div className="text-[10px] font-black flex items-center gap-1">
+                    <span>🌐 ઓનલાઇન સક્રિય</span>
+                    {lastCloudSyncTime && (
+                      <span className="text-[9px] font-normal text-slate-400">({lastCloudSyncTime})</span>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
-              <button
-                id="header-btn-firebase-sync"
-                onClick={() => syncToFirebaseAndCloud()}
-                className="p-2 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm shrink-0 text-xs border border-emerald-300 dark:border-emerald-800 cursor-pointer"
-                title="ગૂગલ ફાયરબેઝ ક્લાઉડ સ્ટોરેજ (ક્લિક કરો તાત્કાલિક સિંક કરવા)"
+              <div 
+                className="p-2 px-3 bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 rounded-xl font-bold flex items-center gap-2 shrink-0 text-xs border border-slate-200 dark:border-slate-700"
+                title="તમારો તમામ ડેટા લોકલ ડિવાઇસ / બ્રાઉઝર સ્ટોરેજમાં ૧૦૦% સુરક્ષિત અને ઑફલાઇન ઉપલબ્ધ છે."
               >
-                <div className="relative">
-                  <Cloud className={`w-4 h-4 text-emerald-600 dark:text-emerald-400 ${isFirebaseSyncing ? 'animate-bounce' : ''}`} />
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
-                </div>
+                <HardDrive className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <div className="text-left leading-none">
-                  <div className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                    <span>Firebase Cloud</span>
-                    {isFirebaseSyncing && <span className="text-[8px] animate-pulse">સિંક...</span>}
-                  </div>
-                  <div className="text-[10px] font-black truncate max-w-[130px]">
-                    {lastFirebaseSyncTime ? `☁️ સિંક્ડ ${lastFirebaseSyncTime}` : '☁️ ક્લાઉડ સેવ સક્રિય'}
-                  </div>
+                  <div className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">ડેટાબેઝ મોડ</div>
+                  <div className="text-[10px] font-black">💾 PC લોકલ સ્ટોરેજ</div>
                 </div>
-              </button>
+              </div>
             )}
 
             {/* PC File Sync Menu Dropdown */}
@@ -5218,11 +5346,42 @@ export default function App() {
                 <BackupModule
                   darkMode={darkMode}
                   trustSettings={trustSettings}
-                  onSyncToCloud={() => syncToFirebaseAndCloud()}
-                  onFetchFromCloud={() => fetchFromFirebaseCloud(false)}
-                  isCloudSyncing={isFirebaseSyncing}
-                  lastCloudSyncTime={lastFirebaseSyncTime}
+                  currentUser={currentSessionUser}
+                  allData={{
+                    donors,
+                    receipts,
+                    vouchers,
+                    banks,
+                    members,
+                    assets,
+                    documents,
+                    tharavs,
+                    reconciliationList,
+                    inventoryItems,
+                    purchaseBills,
+                    salesBills,
+                    sharePurchases,
+                    loanApplications,
+                    fixedDeposits,
+                    budgetPlan,
+                    certificates80g,
+                    notices,
+                    auditLogs,
+                    licenses,
+                    trustSettings,
+                    appUsers
+                  }}
+                  onRestoreBackup={handleRestoreFullBackup}
                   isOfflinePC={isElectronOfflineApp()}
+                  fileHandle={fileHandle}
+                  fileName={fileName}
+                  filePermissionGranted={filePermissionGranted}
+                  onConnectPCFile={handleConnectExistingPCFile}
+                  onCreatePCFile={handleCreatePCFile}
+                  onSyncToCloud={() => syncToFirebaseAndCloud(false)}
+                  onFetchFromCloud={() => fetchFromFirebaseCloud(false)}
+                  isCloudSyncing={isCloudSyncing}
+                  lastCloudSyncTime={lastCloudSyncTime}
                 />
               )}
 
@@ -5247,7 +5406,6 @@ export default function App() {
                   appMode={appMode}
                   onAppModeChange={handleAppModeChange}
                   isOnline={isOnline}
-                  onSyncNow={fetchFromFirebaseCloud}
                   onMasterReset={handleMasterReset}
                 />
               )}
